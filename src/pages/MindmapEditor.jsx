@@ -18,6 +18,7 @@ import {
   X,
   ArrowLeft,
   Save,
+  AlertTriangle,
 } from "lucide-react";
 import { MindmapProvider, useMindmap } from "../contexts/MindmapContext";
 import MindmapCanvas from "../components/mindmap/MindmapCanvas";
@@ -25,9 +26,11 @@ import MindmapToolbar from "../components/mindmap/MindmapToolbar";
 import MindmapContextMenu from "../components/mindmap/MindmapContextMenu";
 import GroupingSuggestion from "../components/mindmap/GroupingSuggestion";
 import OrganizeModeControls from "../components/mindmap/OrganizeModeControls";
+import { storageCleanup } from "../utils/performance";
 
 const MindmapContent = ({ mindmapId }) => {
   const navigate = useNavigate();
+  const [showStorageRecovery, setShowStorageRecovery] = useState(false);
   const {
     canvas,
     blocks,
@@ -240,6 +243,69 @@ const MindmapContent = ({ mindmapId }) => {
     hasInitiallyLoaded,
     autoAdjustZoom,
   ]);
+
+  // Storage recovery functions
+  const handleCleanCorruptedData = async () => {
+    try {
+      const cleaned = storageCleanup.cleanCorruptedMindmapData();
+      if (cleaned > 0) {
+        window.location.reload(); // Reload to apply changes
+      } else {
+        alert("No corrupted data found.");
+      }
+    } catch (error) {
+      console.error("Failed to clean storage:", error);
+      alert("Failed to clean storage. Check console for details.");
+    }
+    setShowStorageRecovery(false);
+  };
+
+  const handleResetAllData = async () => {
+    if (confirm("This will delete ALL mindmap data. Are you sure?")) {
+      try {
+        storageCleanup.resetAllMindmapData();
+        window.location.reload(); // Reload to apply changes
+      } catch (error) {
+        console.error("Failed to reset storage:", error);
+        alert("Failed to reset storage. Check console for details.");
+      }
+    }
+    setShowStorageRecovery(false);
+  };
+
+  const checkStorageHealth = () => {
+    try {
+      const health = storageCleanup.checkStorageHealth();
+      if (health) {
+        const message = `Storage Health Report:
+- Total entries: ${health.total}
+- Corrupted: ${health.corrupted}
+- Large entries: ${health.large}
+- Compressed: ${health.compressed}
+- Total size: ${Math.round(health.totalSize / 1024)}KB`;
+        alert(message);
+      } else {
+        alert("Failed to check storage health.");
+      }
+    } catch (error) {
+      console.error("Failed to check storage health:", error);
+      alert("Failed to check storage health. Check console for details.");
+    }
+  };
+
+  // Check for storage issues on mount
+  useEffect(() => {
+    try {
+      const health = storageCleanup.checkStorageHealth();
+      if (health && health.corrupted > 0) {
+        setTimeout(() => {
+          setShowStorageRecovery(true);
+        }, 2000); // Show after 2 seconds to avoid interfering with loading
+      }
+    } catch (error) {
+      console.warn("Could not check storage health:", error);
+    }
+  }, []);
 
   // Wait for viewport to be properly initialized
   useEffect(() => {
@@ -539,6 +605,71 @@ const MindmapContent = ({ mindmapId }) => {
                 {notification.message}
               </div>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Storage Recovery Dialog */}
+      <AnimatePresence>
+        {showStorageRecovery && (
+          <motion.div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowStorageRecovery(false)}
+          >
+            <motion.div
+              className="glass rounded-xl p-6 max-w-md mx-4 border border-red-500/30"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center">
+                  <AlertTriangle className="w-4 h-4 text-red-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-dark-text">
+                  Storage Issues Detected
+                </h3>
+              </div>
+
+              <p className="text-dark-text-secondary mb-6">
+                Some mindmap data appears to be corrupted. You can try to clean
+                it automatically or reset all data.
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleCleanCorruptedData}
+                  className="px-4 py-2 bg-accent-blue hover:bg-accent-blue/90 text-white rounded-lg font-medium transition-colors"
+                >
+                  Clean Corrupted Data
+                </button>
+                <button
+                  onClick={handleResetAllData}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
+                >
+                  Reset All Data
+                </button>
+                <button
+                  onClick={() => setShowStorageRecovery(false)}
+                  className="px-4 py-2 bg-dark-surface hover:bg-dark-surface/80 text-dark-text rounded-lg font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-dark-border">
+                <button
+                  onClick={checkStorageHealth}
+                  className="text-sm text-dark-text-muted hover:text-dark-text transition-colors"
+                >
+                  Check Storage Health
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

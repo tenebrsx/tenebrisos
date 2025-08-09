@@ -155,6 +155,92 @@ const measureTextDimensions = (
   }
 };
 
+// Dynamic proportional sizing based on character count
+const calculateOptimalSizeByCharacterCount = (
+  content,
+  minWidth = 140,
+  minHeight = 80,
+  maxWidth = 450,
+  maxHeight = 320,
+  hasImage = false,
+) => {
+  try {
+    if (!content || typeof content !== "string" || content.trim() === "") {
+      return { width: 160, height: 90 };
+    }
+
+    const charCount = content.length;
+    const lineCount = content.split("\n").length;
+    const avgCharsPerLine = charCount / Math.max(lineCount, 1);
+
+    // Dynamic scaling factors
+    const baseWidthScaling = 0.7; // px per character for width
+    const baseHeightScaling = 0.25; // px per character for height
+
+    // Use logarithmic scaling for very large content to prevent massive blocks
+    const scalingFactor =
+      charCount > 1000
+        ? Math.log10(charCount) / Math.log10(1000) // Logarithmic dampening after 1000 chars
+        : 1; // Linear scaling up to 1000 chars
+
+    // Calculate base dimensions with character scaling
+    let dynamicWidth = minWidth + charCount * baseWidthScaling * scalingFactor;
+    let dynamicHeight =
+      minHeight + charCount * baseHeightScaling * scalingFactor;
+
+    // Adjust for line structure - smooth adjustments
+    const lineStructureFactorWidth =
+      avgCharsPerLine > 60
+        ? 1 + (avgCharsPerLine - 60) * 0.008 // Wider for long lines
+        : avgCharsPerLine < 25 && lineCount > 3
+          ? 0.85 + avgCharsPerLine * 0.006 // Narrower for short lines
+          : 1; // Normal
+
+    const lineStructureFactorHeight =
+      lineCount > 5
+        ? 1 + (lineCount - 5) * 0.05 // Taller for many lines
+        : lineCount < 2
+          ? 0.9 // Shorter for single lines
+          : 1; // Normal
+
+    // Apply line structure adjustments
+    dynamicWidth *= lineStructureFactorWidth;
+    dynamicHeight *= lineStructureFactorHeight;
+
+    // For very dense content, apply additional height scaling
+    if (charCount > 500) {
+      const densityFactor = Math.min(1.5, 1 + (charCount - 500) * 0.0008);
+      dynamicHeight *= densityFactor;
+    }
+
+    // Account for images
+    if (hasImage) {
+      const imageHeight = 120;
+      const imageSpacing = 8;
+      dynamicHeight += imageHeight + imageSpacing;
+      dynamicWidth = Math.max(dynamicWidth, 180 + 32);
+    }
+
+    // Apply final constraints with smooth clamping
+    const finalWidth = Math.max(
+      minWidth,
+      Math.min(maxWidth, Math.ceil(dynamicWidth)),
+    );
+    const finalHeight = Math.max(
+      minHeight,
+      Math.min(maxWidth, Math.ceil(dynamicHeight)),
+    );
+
+    return { width: finalWidth, height: finalHeight };
+  } catch (error) {
+    console.warn(
+      "Error calculating dynamic character-based block size:",
+      error,
+    );
+    return { width: 200, height: 120 };
+  }
+};
+
 const calculateOptimalBlockSize = (
   content,
   minWidth = 140,
@@ -288,6 +374,12 @@ export const MindmapProvider = ({ children, mindmapId }) => {
       viewportHeight: window.innerHeight,
     });
   });
+
+  // Enhanced dynamic scaling state to prevent conflicts
+  const [isPerformingDynamicScaling, setIsPerformingDynamicScaling] =
+    useState(false);
+  const [scalingInProgress, setScalingInProgress] = useState(new Set());
+  const scalingTimeouts = useRef(new Map());
 
   // UI state
   const [selectedBlocks, setSelectedBlocks] = useState([]);
@@ -1109,6 +1201,439 @@ export const MindmapProvider = ({ children, mindmapId }) => {
     ],
   );
 
+  // Optimized intelligent neighbor repositioning with performance improvements
+  const intelligentNeighborRepositioning = useCallback(
+    (changedBlock, allBlocks) => {
+      const otherBlocks = allBlocks.filter(
+        (block) => block.id !== changedBlock.id,
+      );
+
+      // Calculate influence radius based on block size
+      const blockWidth = changedBlock.width || 200;
+      const blockHeight = changedBlock.height || 100;
+      const influenceRadius = Math.max(blockWidth, blockHeight) * 1.2;
+
+      // Find blocks within influence radius and calculate repositioning force
+      const affectedBlocks = otherBlocks.map((block) => {
+        const dx = block.x - changedBlock.x;
+        const dy = block.y - changedBlock.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance < influenceRadius && distance > 0) {
+          // Calculate push force (stronger for closer blocks)
+          const force = Math.max(
+            0,
+            (influenceRadius - distance) / influenceRadius,
+          );
+          const pushDistance = force * 150; // Base push distance
+
+          // Normalize direction and apply push
+          const normalizedDx = dx / distance;
+          const normalizedDy = dy / distance;
+
+          const newX = block.x + normalizedDx * pushDistance;
+          const newY = block.y + normalizedDy * pushDistance;
+
+          return {
+            ...block,
+            x: newX,
+            y: newY,
+            repositioned: true,
+            pushForce: force,
+          };
+        }
+
+        return { ...block, repositioned: false, pushForce: 0 };
+      });
+
+      // Check for chain reactions (repositioned blocks affecting others)
+      const chainReactionBlocks = affectedBlocks.map((block) => {
+        if (!block.repositioned) return block;
+
+        // Check if this repositioned block now affects other blocks
+        const chainAffected = affectedBlocks.filter(
+          (otherBlock) =>
+            otherBlock.id !== block.id && !otherBlock.repositioned,
+        );
+
+        chainAffected.forEach((otherBlock) => {
+          const dx = otherBlock.x - block.x;
+          const dy = otherBlock.y - block.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          const chainRadius =
+            Math.max(block.width || 200, block.height || 100) * 0.8;
+
+          if (distance < chainRadius && distance > 0) {
+            const chainForce = 0.3; // Weaker chain reaction force
+            const chainPush = chainForce * 80;
+            const normalizedDx = dx / distance;
+            const normalizedDy = dy / distance;
+
+            otherBlock.x += normalizedDx * chainPush;
+            otherBlock.y += normalizedDy * chainPush;
+            otherBlock.chainReaction = true;
+          }
+        });
+
+        return block;
+      });
+
+      return [changedBlock, ...chainReactionBlocks];
+    },
+    [],
+  );
+
+  // Dynamic zoom management: Adjust zoom when blocks grow significantly
+  const dynamicZoomAdjustment = useCallback(
+    (changedBlock, previousSize) => {
+      const currentWidth = changedBlock.width || 200;
+      const currentHeight = changedBlock.height || 100;
+      const previousWidth = previousSize?.width || 200;
+      const previousHeight = previousSize?.height || 100;
+
+      // Calculate size increase percentage
+      const widthIncrease = (currentWidth - previousWidth) / previousWidth;
+      const heightIncrease = (currentHeight - previousHeight) / previousHeight;
+      const maxIncrease = Math.max(widthIncrease, heightIncrease);
+
+      // Trigger zoom adjustment if block grew significantly (>30%)
+      if (maxIncrease > 0.3) {
+        const currentContentBounds = getContentBounds();
+        const currentZoom = canvas.zoom;
+
+        // Calculate new content bounds including the enlarged block
+        const newBounds = {
+          minX: Math.min(currentContentBounds.minX, changedBlock.x),
+          maxX: Math.max(
+            currentContentBounds.maxX,
+            changedBlock.x + currentWidth,
+          ),
+          minY: Math.min(currentContentBounds.minY, changedBlock.y),
+          maxY: Math.max(
+            currentContentBounds.maxY,
+            changedBlock.y + currentHeight,
+          ),
+        };
+
+        // Calculate required zoom to fit all content
+        const viewportWidth = canvas.viewportWidth || window.innerWidth;
+        const viewportHeight = canvas.viewportHeight || window.innerHeight;
+        const safePadding = 0.85;
+
+        const requiredZoomX =
+          (viewportWidth * safePadding) / (newBounds.maxX - newBounds.minX);
+        const requiredZoomY =
+          (viewportHeight * safePadding) / (newBounds.maxY - newBounds.minY);
+        const targetZoom = Math.min(requiredZoomX, requiredZoomY);
+
+        // Only zoom out if current zoom is too high for the new content size
+        if (targetZoom < currentZoom) {
+          const smoothZoom = Math.max(targetZoom, currentZoom * 0.8); // Gradual zoom out
+
+          setCanvas((prev) => {
+            const centerX = (newBounds.minX + newBounds.maxX) / 2;
+            const centerY = (newBounds.minY + newBounds.maxY) / 2;
+
+            return {
+              ...prev,
+              zoom: smoothZoom,
+              panX: viewportWidth / 2 - centerX * smoothZoom,
+              panY: viewportHeight / 2 - centerY * smoothZoom,
+            };
+          });
+
+          // Show notification about zoom adjustment
+          showNotification(
+            `Zoomed out to accommodate larger block`,
+            "info",
+            2500,
+          );
+
+          return true; // Indicates zoom was adjusted
+        }
+      }
+
+      return false; // No zoom adjustment needed
+    },
+    [
+      getContentBounds,
+      canvas.zoom,
+      canvas.viewportWidth,
+      canvas.viewportHeight,
+      showNotification,
+    ],
+  );
+
+  // Enhanced block size change handler with conflict prevention
+  const handleDynamicScaling = useCallback(
+    (blockId, newSize, previousSize) => {
+      // Prevent multiple simultaneous scaling operations on the same block
+      if (scalingInProgress.has(blockId)) {
+        return;
+      }
+
+      // Clear any existing timeout for this block
+      if (scalingTimeouts.current.has(blockId)) {
+        clearTimeout(scalingTimeouts.current.get(blockId));
+        scalingTimeouts.current.delete(blockId);
+      }
+
+      // Mark block as scaling in progress
+      setScalingInProgress((prev) => new Set([...prev, blockId]));
+      setIsPerformingDynamicScaling(true);
+
+      setBlocks((prev) => {
+        const currentBlock = prev.find((block) => block.id === blockId);
+        if (!currentBlock) {
+          // Clean up scaling state if block not found
+          setScalingInProgress((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(blockId);
+            return newSet;
+          });
+          return prev;
+        }
+
+        // Update the block with new size
+        const updatedBlock = { ...currentBlock, ...newSize };
+        const otherBlocks = prev.filter((block) => block.id !== blockId);
+
+        // Apply intelligent neighbor repositioning only if significant change
+        const sizeChange = Math.abs(
+          newSize.width * newSize.height -
+            (previousSize?.width || 200) * (previousSize?.height || 100),
+        );
+        const shouldRepositionNeighbors = sizeChange > 5000; // Only for significant size changes
+
+        let repositionedBlocks = [updatedBlock, ...otherBlocks];
+        let repositionedIds = new Set();
+
+        if (shouldRepositionNeighbors) {
+          repositionedBlocks = intelligentNeighborRepositioning(updatedBlock, [
+            updatedBlock,
+            ...otherBlocks,
+          ]);
+
+          // Identify repositioned blocks for animation
+          repositionedBlocks.forEach((block) => {
+            const originalBlock = prev.find((b) => b.id === block.id);
+            if (
+              originalBlock &&
+              block.id !== blockId &&
+              (Math.abs(block.x - originalBlock.x) > 8 ||
+                Math.abs(block.y - originalBlock.y) > 8)
+            ) {
+              repositionedIds.add(block.id);
+            }
+          });
+        }
+
+        // Handle repositioning animations efficiently
+        if (repositionedIds.size > 0) {
+          const repositionedWithDistance = Array.from(repositionedIds)
+            .map((id) => {
+              const block = repositionedBlocks.find((b) => b.id === id);
+              const distance = Math.sqrt(
+                Math.pow(block.x - updatedBlock.x, 2) +
+                  Math.pow(block.y - updatedBlock.y, 2),
+              );
+              return { id, distance };
+            })
+            .sort((a, b) => a.distance - b.distance)
+            .slice(0, 10); // Limit to 10 blocks for performance
+
+          // Optimized staggered animations
+          repositionedWithDistance.forEach((item, index) => {
+            const delay = index * 40; // Reduced stagger for smoother experience
+            const timeoutId = setTimeout(() => {
+              setRepositioningBlocks((prev) => new Set([...prev, item.id]));
+            }, delay);
+
+            // Store timeout for cleanup
+            scalingTimeouts.current.set(`reposition-${item.id}`, timeoutId);
+          });
+
+          // Clear animation indicators with cleanup
+          const clearTimeoutId = setTimeout(
+            () => {
+              setRepositioningBlocks(new Set());
+              // Clean up stored timeouts
+              repositionedWithDistance.forEach((item) => {
+                scalingTimeouts.current.delete(`reposition-${item.id}`);
+              });
+            },
+            800 + repositionedWithDistance.length * 40,
+          );
+
+          scalingTimeouts.current.set(`clear-${blockId}`, clearTimeoutId);
+
+          // Show notification only for significant repositioning
+          if (repositionedIds.size > 2) {
+            const message = `Repositioned ${repositionedIds.size} neighbor blocks`;
+            showNotification(message, "info", 1500);
+          }
+        }
+
+        return repositionedBlocks;
+      });
+
+      // Optimized dynamic zoom adjustment with cleanup
+      const zoomTimeoutId = setTimeout(() => {
+        dynamicZoomAdjustment(
+          { ...blocks.find((b) => b.id === blockId), ...newSize },
+          previousSize,
+        );
+
+        // Clean up scaling state
+        setScalingInProgress((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(blockId);
+          return newSet;
+        });
+
+        // Update global scaling state
+        setIsPerformingDynamicScaling(
+          (prev) => prev && scalingInProgress.size > 1,
+        );
+
+        scalingTimeouts.current.delete(blockId);
+      }, 80); // Reduced delay for snappier response
+
+      scalingTimeouts.current.set(blockId, zoomTimeoutId);
+    },
+    [
+      blocks,
+      intelligentNeighborRepositioning,
+      dynamicZoomAdjustment,
+      showNotification,
+      scalingInProgress,
+    ],
+  );
+
+  // Detect large paste operations and handle them intelligently
+  const handleLargePasteOperation = useCallback(
+    (blockId, content, previousContent = "") => {
+      const charDiff = content.length - previousContent.length;
+      const isLargePaste = charDiff > 50; // Lower threshold for more responsive scaling
+
+      if (isLargePaste) {
+        // Use dynamic proportional sizing for any content change
+        const optimalSize = calculateOptimalSizeByCharacterCount(
+          content,
+          140,
+          80,
+          450,
+          320,
+          false, // We'll handle images separately
+        );
+
+        // Get current block to check for images
+        const currentBlock = blocks.find((block) => block.id === blockId);
+        if (currentBlock?.image) {
+          const imageHeight = 120;
+          const imageSpacing = 8;
+          optimalSize.height += imageHeight + imageSpacing;
+          optimalSize.width = Math.max(optimalSize.width, 180 + 32);
+        }
+
+        const previousSize = {
+          width: currentBlock?.width || 200,
+          height: currentBlock?.height || 100,
+        };
+
+        // Use enhanced dynamic scaling for the paste operation
+        handleDynamicScaling(
+          blockId,
+          {
+            content: content,
+            width: optimalSize.width,
+            height: optimalSize.height,
+          },
+          previousSize,
+        );
+
+        // Show notification for paste operations with size info
+        const sizeInfo = `${optimalSize.width}×${optimalSize.height}`;
+        showNotification(
+          `Auto-sized to ${sizeInfo} for ${charDiff} characters`,
+          "info",
+          2000,
+        );
+
+        return true; // Indicates that paste was handled
+      }
+
+      return false; // Regular handling should continue
+    },
+    [blocks, handleDynamicScaling, showNotification],
+  );
+
+  // Smooth scaling for very large content with performance considerations
+  const handleVeryLargeContent = useCallback(
+    (blockId, content) => {
+      const charCount = content.length;
+
+      if (charCount > 3000) {
+        // Use dynamic scaling even for very large content, but with performance warnings
+        const currentBlock = blocks.find((block) => block.id === blockId);
+        if (!currentBlock) return false;
+
+        // Calculate optimal size using the dynamic system
+        const optimalSize = calculateOptimalSizeByCharacterCount(
+          content,
+          140,
+          80,
+          450,
+          320,
+          !!currentBlock.image,
+        );
+
+        const previousSize = {
+          width: currentBlock.width || 200,
+          height: currentBlock.height || 100,
+        };
+
+        // For very large content, show performance warning
+        if (charCount > 8000) {
+          showNotification(
+            `Very large content (${Math.round(charCount / 1000)}k chars). May impact performance.`,
+            "warning",
+            4000,
+          );
+        }
+
+        // Use the standard dynamic scaling system
+        handleDynamicScaling(
+          blockId,
+          {
+            content: content,
+            width: optimalSize.width,
+            height: optimalSize.height,
+          },
+          previousSize,
+        );
+
+        // Show scaling completion notification
+        const sizeInfo = `${optimalSize.width}×${optimalSize.height}`;
+        showNotification(
+          `Scaled to ${sizeInfo} for ${Math.round(charCount / 1000)}k characters`,
+          "info",
+          3000,
+        );
+
+        return true; // Indicates large content was handled
+      }
+
+      return false; // No special handling needed
+    },
+    [
+      blocks,
+      calculateOptimalSizeByCharacterCount,
+      handleDynamicScaling,
+      showNotification,
+    ],
+  );
+
   // Helper function to check and resolve overlaps when a block changes size
   const checkAndResolveOverlaps = useCallback(
     (changedBlock, allBlocks) => {
@@ -1204,43 +1729,72 @@ export const MindmapProvider = ({ children, mindmapId }) => {
 
   const updateBlock = useCallback(
     (id, updates) => {
-      setBlocks((prev) => {
-        const currentBlock = prev.find((block) => block.id === id);
-        if (!currentBlock) return prev;
+      const currentBlock = blocks.find((block) => block.id === id);
+      if (!currentBlock) return;
 
-        // Check if this is a size change that might cause overlaps
-        const hasSizeChange =
-          updates.width || updates.height || updates.image !== undefined;
-        const oldWidth = currentBlock.width || 200;
-        const oldHeight = currentBlock.height || 100;
-        const newWidth = updates.width || oldWidth;
-        const newHeight = updates.height || oldHeight;
-
-        // Calculate if size change is significant enough to potentially cause overlaps
-        const significantWidthChange = Math.abs(newWidth - oldWidth) > 15;
-        const significantHeightChange = Math.abs(newHeight - oldHeight) > 15;
-        const needsRepositioning =
-          hasSizeChange && (significantWidthChange || significantHeightChange);
-
-        // Update the block first
-        const updatedBlocks = prev.map((block) =>
-          block.id === id
-            ? { ...block, ...updates, lastEdited: new Date().toISOString() }
-            : block,
+      // Check for large paste operations first
+      if (updates.content && currentBlock.content) {
+        const wasHandledAsLargePaste = handleLargePasteOperation(
+          id,
+          updates.content,
+          currentBlock.content,
         );
 
-        // If size changed significantly, check for and resolve overlaps
-        if (needsRepositioning) {
-          const updatedBlock = updatedBlocks.find((block) => block.id === id);
-
-          // Use the helper function to check and resolve overlaps
-          return checkAndResolveOverlaps(updatedBlock, updatedBlocks);
+        if (wasHandledAsLargePaste) {
+          return; // Large paste was handled, no need for standard processing
         }
+      }
 
-        return updatedBlocks;
-      });
+      // Check for very large content that needs special handling
+      if (updates.content) {
+        const wasHandledAsLargeContent = handleVeryLargeContent(
+          id,
+          updates.content,
+        );
+
+        if (wasHandledAsLargeContent) {
+          return; // Large content scaling was applied
+        }
+      }
+
+      // Check if this is a significant size change for dynamic scaling
+      const hasSizeChange =
+        updates.width || updates.height || updates.image !== undefined;
+      const oldWidth = currentBlock.width || 200;
+      const oldHeight = currentBlock.height || 100;
+      const newWidth = updates.width || oldWidth;
+      const newHeight = updates.height || oldHeight;
+
+      // Calculate if size change is significant enough for dynamic scaling
+      const significantWidthChange = Math.abs(newWidth - oldWidth) > 15;
+      const significantHeightChange = Math.abs(newHeight - oldHeight) > 15;
+      const needsDynamicScaling =
+        hasSizeChange && (significantWidthChange || significantHeightChange);
+
+      if (needsDynamicScaling) {
+        // Use enhanced dynamic scaling with intelligent repositioning
+        handleDynamicScaling(
+          id,
+          { width: newWidth, height: newHeight, ...updates },
+          { width: oldWidth, height: oldHeight },
+        );
+      } else {
+        // Standard update for minor changes
+        setBlocks((prev) =>
+          prev.map((block) =>
+            block.id === id
+              ? { ...block, ...updates, lastEdited: new Date().toISOString() }
+              : block,
+          ),
+        );
+      }
     },
-    [checkAndResolveOverlaps],
+    [
+      blocks,
+      handleDynamicScaling,
+      handleLargePasteOperation,
+      handleVeryLargeContent,
+    ],
   );
 
   const deleteBlock = useCallback(
@@ -1678,6 +2232,10 @@ export const MindmapProvider = ({ children, mindmapId }) => {
     organizeOriginalPositions,
     moodTags,
 
+    // Dynamic scaling state
+    isPerformingDynamicScaling,
+    scalingInProgress,
+
     // Block operations
     createBlock,
     updateBlock,
@@ -1745,7 +2303,38 @@ export const MindmapProvider = ({ children, mindmapId }) => {
     toggleOrganizeMode,
     applyOrganize,
     revertOrganize,
+
+    // Enhanced dynamic scaling functionality
+    handleDynamicScaling,
+    handleLargePasteOperation,
+    calculateOptimalSizeByCharacterCount,
+    handleVeryLargeContent,
+    intelligentNeighborRepositioning,
+    dynamicZoomAdjustment,
   };
+
+  // Cleanup effect for scaling timeouts and state management
+  useEffect(() => {
+    return () => {
+      // Clear all scaling timeouts on unmount
+      scalingTimeouts.current.forEach((timeoutId) => {
+        clearTimeout(timeoutId);
+      });
+      scalingTimeouts.current.clear();
+
+      // Reset scaling state
+      setScalingInProgress(new Set());
+      setIsPerformingDynamicScaling(false);
+      setRepositioningBlocks(new Set());
+    };
+  }, []);
+
+  // Effect to clean up completed scaling operations
+  useEffect(() => {
+    if (scalingInProgress.size === 0) {
+      setIsPerformingDynamicScaling(false);
+    }
+  }, [scalingInProgress]);
 
   return (
     <MindmapContext.Provider value={value}>{children}</MindmapContext.Provider>

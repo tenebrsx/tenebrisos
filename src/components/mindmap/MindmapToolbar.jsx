@@ -13,6 +13,10 @@ import {
   Focus,
   Pin,
   LayoutGrid,
+  Expand,
+  Activity,
+  FileText,
+  AlertTriangle,
 } from "lucide-react";
 import { useMindmap } from "../../contexts/MindmapContext";
 import clsx from "clsx";
@@ -36,6 +40,7 @@ const MindmapToolbar = ({
     pinnedBlocks,
     toggleOrganizeMode,
     isOrganizeModeActive,
+    repositioningBlocks,
   } = useMindmap();
 
   const stats = getStatistics();
@@ -43,6 +48,16 @@ const MindmapToolbar = ({
   const handleAutoAdjust = () => {
     autoAdjustZoom();
   };
+
+  const isDynamicScalingActive = repositioningBlocks.size > 0;
+
+  // Check for large content operations
+  const hasLargeContentBlocks = blocks.some(
+    (block) => block.content && block.content.length > 1000,
+  );
+  const hasVeryLargeContentBlocks = blocks.some(
+    (block) => block.content && block.content.length > 8000,
+  );
 
   const handleCreateBlock = () => {
     // Create block at center of viewport
@@ -173,6 +188,69 @@ const MindmapToolbar = ({
             </p>
           </div>
         </div>
+
+        {/* Dynamic Scaling Indicator */}
+        {isDynamicScalingActive && (
+          <motion.div
+            className="flex items-center gap-2 px-2 py-1"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ duration: 0.3 }}
+          >
+            <motion.div
+              className="flex items-center gap-1 text-orange-400"
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+            >
+              <Activity size={14} />
+              <span className="text-xs font-medium">
+                Scaling {repositioningBlocks.size} block
+                {repositioningBlocks.size !== 1 ? "s" : ""}
+              </span>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Large Content Indicator */}
+        {hasVeryLargeContentBlocks && (
+          <motion.div
+            className="flex items-center gap-2 px-2 py-1"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ duration: 0.3 }}
+          >
+            <motion.div
+              className="flex items-center gap-1 text-red-400"
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ repeat: Infinity, duration: 2 }}
+            >
+              <AlertTriangle size={14} />
+              <span className="text-xs font-medium">8k+ chars</span>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Large Content Blocks Indicator */}
+        {hasLargeContentBlocks && !hasVeryLargeContentBlocks && (
+          <motion.div
+            className="flex items-center gap-2 px-2 py-1"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ duration: 0.3 }}
+          >
+            <motion.div
+              className="flex items-center gap-1 text-green-400"
+              animate={{ scale: [1, 1.05, 1] }}
+              transition={{ repeat: Infinity, duration: 2.5 }}
+            >
+              <FileText size={14} />
+              <span className="text-xs font-medium">1k+ chars</span>
+            </motion.div>
+          </motion.div>
+        )}
 
         {/* Separator */}
         <div className="w-px h-8 bg-white/10" />

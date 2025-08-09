@@ -1,5 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { loadFromStorage, saveToStorage } from "../utils/helpers.js";
+import {
+  initializeTheme,
+  applyTheme,
+  getCurrentTheme,
+  getThemeList,
+} from "../utils/themes.js";
 
 // Use environment variable for API key
 const DEFAULT_API_KEY = import.meta.env.VITE_OPENAI_API_KEY || "";
@@ -15,7 +21,8 @@ export const useSettings = () => {
 };
 
 const defaultSettings = {
-  theme: "dark",
+  theme: "default",
+  currentTheme: "default",
   notifications: {
     enabled: true,
     activityReminders: true,
@@ -42,6 +49,22 @@ const defaultSettings = {
     animationsEnabled: true,
     compactMode: false,
     showSeconds: false,
+    enableRetroTheme: false,
+  },
+  themes: {
+    available: [
+      "default",
+      "light",
+      "retro-light",
+      "retro-dark",
+      "macos9-light",
+      "macos9-dark",
+    ],
+    current: "default",
+    retro: {
+      enabled: false,
+      variant: "light", // "light" or "dark"
+    },
   },
 };
 
@@ -67,8 +90,17 @@ export const SettingsProvider = ({ children }) => {
     }
   }, [settings]);
 
+  // Initialize theme system on mount
+  useEffect(() => {
+    initializeTheme();
+  }, []);
+
   // Apply theme changes to document
   useEffect(() => {
+    const currentTheme = settings.themes?.current || "default";
+    applyTheme(currentTheme);
+
+    // Legacy theme support
     document.documentElement.setAttribute("data-theme", settings.theme);
     if (settings.theme === "light") {
       document.documentElement.classList.add("light-theme");
@@ -77,7 +109,7 @@ export const SettingsProvider = ({ children }) => {
       document.documentElement.classList.add("dark-theme");
       document.documentElement.classList.remove("light-theme");
     }
-  }, [settings.theme]);
+  }, [settings.theme, settings.themes?.current]);
 
   // Apply interface settings
   useEffect(() => {
@@ -253,6 +285,41 @@ export const SettingsProvider = ({ children }) => {
     return current;
   };
 
+  // Theme management functions
+  const changeTheme = (themeId) => {
+    const theme = applyTheme(themeId);
+    updateSetting("themes.current", themeId);
+    updateSetting("theme", themeId); // Keep legacy support
+    return theme;
+  };
+
+  const getAvailableThemes = () => {
+    return getThemeList();
+  };
+
+  const getActiveTheme = () => {
+    return getCurrentTheme();
+  };
+
+  const toggleRetroTheme = () => {
+    const currentTheme = settings.themes?.current || "default";
+
+    // If currently on a retro theme, go to modern
+    if (currentTheme.includes("retro") || currentTheme.includes("macos9")) {
+      return changeTheme("default");
+    }
+
+    // If currently on modern, go to retro (prefer dark to match current modern dark theme)
+    if (currentTheme === "default") {
+      return changeTheme("retro-dark");
+    } else if (currentTheme === "light") {
+      return changeTheme("retro-light");
+    }
+
+    // Default fallback
+    return changeTheme("retro-light");
+  };
+
   const contextValue = {
     settings,
     updateSetting,
@@ -264,6 +331,11 @@ export const SettingsProvider = ({ children }) => {
     scheduleBreakReminder,
     trackEvent,
     reportError,
+    // Theme functions
+    changeTheme,
+    getAvailableThemes,
+    getActiveTheme,
+    toggleRetroTheme,
   };
 
   return (

@@ -361,24 +361,75 @@ export class OptimizedStorage {
       return this.cache.get(key);
     }
 
-    const fullKey = this.prefix + key;
-
     try {
+      const fullKey = this.prefix + key;
       const stored = localStorage.getItem(fullKey);
-      if (stored === null) return defaultValue;
+
+      if (!stored) {
+        return defaultValue;
+      }
 
       let parsed = stored;
 
       // Check if it's compressed
       if (stored.startsWith("COMPRESSED:")) {
-        parsed = this.decompress(stored);
+        try {
+          parsed = this.decompress(stored);
+        } catch (decompressError) {
+          console.warn(
+            `Decompression failed for ${key}, clearing corrupted data:`,
+            decompressError,
+          );
+          // Clear corrupted compressed data
+          localStorage.removeItem(fullKey);
+          this.cache.delete(key);
+          return defaultValue;
+        }
       }
 
-      const value = JSON.parse(parsed);
+      // Additional validation for JSON parsing
+      let value;
+      try {
+        value = JSON.parse(parsed);
+      } catch (parseError) {
+        console.warn(
+          `JSON parsing failed for ${key}, clearing corrupted data:`,
+          parseError,
+        );
+        // Clear corrupted data
+        localStorage.removeItem(fullKey);
+        this.cache.delete(key);
+        return defaultValue;
+      }
+
+      // Validate that the parsed value is reasonable
+      if (
+        value &&
+        typeof value === "object" &&
+        JSON.stringify(value).length > 10000000
+      ) {
+        console.warn(
+          `Data for ${key} is suspiciously large, clearing:`,
+          JSON.stringify(value).length,
+          "characters",
+        );
+        localStorage.removeItem(fullKey);
+        this.cache.delete(key);
+        return defaultValue;
+      }
+
       this.cache.set(key, value);
       return value;
     } catch (error) {
       console.warn(`Failed to retrieve ${key}:`, error);
+      // Clear potentially corrupted data
+      try {
+        const fullKey = this.prefix + key;
+        localStorage.removeItem(fullKey);
+        this.cache.delete(key);
+      } catch (clearError) {
+        console.warn(`Failed to clear corrupted data for ${key}:`, clearError);
+      }
       return defaultValue;
     }
   }
@@ -411,15 +462,163 @@ export class OptimizedStorage {
   }
 
   decompress(str) {
-    return str.replace("COMPRESSED:", "").replace(/(.)\d+/g, (match, char) => {
-      const count = parseInt(match.slice(1));
-      return char.repeat(count);
-    });
+    try {
+      return str
+        .replace("COMPRESSED:", "")
+        .replace(/(.)\d+/g, (match, char) => {
+          const count = parseInt(match.slice(1));
+
+          // Safety checks for repeat count
+          if (isNaN(count) || count < 0) {
+            return char; // Just return the character once if count is invalid
+          }
+
+          // Cap the repeat count to prevent memory issues (max 10,000 repetitions)
+          const safeCount = Math.min(count, 10000);
+
+          return char.repeat(safeCount);
+        });
+    } catch (error) {
+      console.warn("Decompression failed, returning original string:", error);
+      // If decompression fails, try to return the string without COMPRESSED: prefix
+      return str.replace("COMPRESSED:", "");
+    }
   }
 }
 
 // Global optimized storage instance
 export const optimizedStorage = new OptimizedStorage();
+
+/**
+ * Storage cleanup and recovery utilities
+ */
+export const storageCleanup = {
+  /**
+   * Clean all corrupted mindmap data from storage
+   */
+  cleanCorruptedMindmapData() {
+    try {
+      const keys = Object.keys(localStorage);
+      let cleaned = 0;
+
+      keys.forEach((key) => {
+        if (key.includes("mindmap-blocks") || key.includes("mindmap-canvas")) {
+          try {
+            const data = localStorage.getItem(key);
+            if (data && data.startsWith("COMPRESSED:")) {
+              // Try to decompress and validate
+              const decompressed = optimizedStorage.decompress(data);
+              JSON.parse(decompressed);
+            } else if (data) {
+              // Try to parse regular JSON
+              JSON.parse(data);
+            }
+          } catch (error) {
+            console.warn(`Removing corrupted storage key: ${key}`, error);
+            localStorage.removeItem(key);
+            cleaned++;
+          }
+        }
+      });
+
+      console.log(`Cleaned ${cleaned} corrupted storage entries`);
+      return cleaned;
+    } catch (error) {
+      console.error("Failed to clean storage:", error);
+      return 0;
+    }
+  },
+
+  /**
+   * Reset all mindmap storage data
+   */
+  resetAllMindmapData() {
+    try {
+      const keys = Object.keys(localStorage);
+      let removed = 0;
+
+      keys.forEach((key) => {
+        if (key.includes("mindmap-blocks") || key.includes("mindmap-canvas")) {
+          localStorage.removeItem(key);
+          removed++;
+        }
+      });
+
+      // Clear optimized storage cache
+      optimizedStorage.cache.clear();
+
+      console.log(`Reset ${removed} mindmap storage entries`);
+      return removed;
+    } catch (error) {
+      console.error("Failed to reset mindmap data:", error);
+      return 0;
+    }
+  },
+
+  /**
+   * Check storage health and report issues
+   */
+  checkStorageHealth() {
+    try {
+      const keys = Object.keys(localStorage);
+      const report = {
+        total: 0,
+        corrupted: 0,
+        large: 0,
+        compressed: 0,
+        totalSize: 0,
+      };
+
+      keys.forEach((key) => {
+        if (key.includes("mindmap-blocks") || key.includes("mindmap-canvas")) {
+          report.total++;
+
+          try {
+            const data = localStorage.getItem(key);
+            if (data) {
+              report.totalSize += data.length;
+
+              if (data.startsWith("COMPRESSED:")) {
+                report.compressed++;
+                try {
+                  const decompressed = optimizedStorage.decompress(data);
+                  JSON.parse(decompressed);
+                } catch (error) {
+                  report.corrupted++;
+                }
+              } else {
+                try {
+                  JSON.parse(data);
+                } catch (error) {
+                  report.corrupted++;
+                }
+              }
+
+              if (data.length > 100000) {
+                // >100KB
+                report.large++;
+              }
+            }
+          } catch (error) {
+            report.corrupted++;
+          }
+        }
+      });
+
+      return report;
+    } catch (error) {
+      console.error("Failed to check storage health:", error);
+      return null;
+    }
+  },
+};
+
+// Add global cleanup functions for debugging
+if (typeof window !== "undefined") {
+  window.cleanMindmapStorage = storageCleanup.cleanCorruptedMindmapData;
+  window.resetMindmapStorage = storageCleanup.resetAllMindmapData;
+  window.checkMindmapStorageHealth = storageCleanup.checkStorageHealth;
+}
 
 // ==================== BUNDLE OPTIMIZATION ====================
 

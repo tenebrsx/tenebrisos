@@ -25,6 +25,9 @@ import PerformanceMonitor from "./components/PerformanceMonitor";
 // Contexts
 import { SettingsProvider } from "./contexts/SettingsContext";
 
+// Theme System
+import { initializeTheme } from "./utils/themes.js";
+
 // Pages
 import Home from "./pages/Home";
 import Activities from "./pages/Activities";
@@ -126,6 +129,9 @@ const AppLayout = () => {
   useEffect(() => {
     // Initialize performance optimizations
     initializePerformanceOptimizations();
+
+    // Initialize theme system
+    initializeTheme();
 
     // Simulate initial loading with animation state management
     const timer = setTimeout(() => {

@@ -37,6 +37,10 @@ const Settings = () => {
     showNotification,
     requestNotificationPermission,
     playSound,
+    changeTheme,
+    getAvailableThemes,
+    getActiveTheme,
+    toggleRetroTheme,
   } = useSettings();
   const [activeTab, setActiveTab] = useState("general");
 
@@ -233,31 +237,225 @@ const Settings = () => {
       case "general":
         return (
           <div className="space-y-6">
+            {/* Theme Selector */}
             <SettingItem
-              label="Theme"
-              description="Choose your preferred theme"
+              label="Visual Theme"
+              description="Choose your preferred visual style - Modern or Classic retro themes"
             >
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => handleUpdateSetting("theme", "dark")}
-                  className={`p-2 rounded-lg transition-all ${
-                    settings.theme === "dark"
-                      ? "bg-accent-blue text-white"
-                      : "bg-dark-border text-dark-text-muted hover:text-dark-text"
-                  }`}
-                >
-                  <Moon size={16} />
-                </button>
-                <button
-                  onClick={() => handleUpdateSetting("theme", "light")}
-                  className={`p-2 rounded-lg transition-all ${
-                    settings.theme === "light"
-                      ? "bg-accent-blue text-white"
-                      : "bg-dark-border text-dark-text-muted hover:text-dark-text"
-                  }`}
-                >
-                  <Sun size={16} />
-                </button>
+              <div className="space-y-4">
+                {/* Modern Themes */}
+                <div>
+                  <h4 className="text-sm font-medium text-white mb-3">
+                    Modern Themes
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <motion.button
+                      onClick={() => changeTheme("default")}
+                      className={`p-4 rounded-xl border-2 transition-all text-left ${
+                        getActiveTheme() === "default"
+                          ? "border-accent-blue bg-accent-blue/10"
+                          : "border-dark-border bg-dark-surface hover:border-accent-blue/50"
+                      }`}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-dark-bg to-dark-surface border border-dark-border flex items-center justify-center">
+                          <Moon size={16} className="text-accent-blue" />
+                        </div>
+                        <div>
+                          <h5 className="font-semibold text-white">
+                            Tenebris Dark
+                          </h5>
+                          <p className="text-xs text-dark-text-muted">
+                            Modern dark interface
+                          </p>
+                        </div>
+                      </div>
+                    </motion.button>
+
+                    <motion.button
+                      onClick={() => changeTheme("light")}
+                      className={`p-4 rounded-xl border-2 transition-all text-left ${
+                        getActiveTheme() === "light"
+                          ? "border-accent-blue bg-accent-blue/10"
+                          : "border-dark-border bg-dark-surface hover:border-accent-blue/50"
+                      }`}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 border border-gray-300 flex items-center justify-center">
+                          <Sun size={16} className="text-accent-blue" />
+                        </div>
+                        <div>
+                          <h5 className="font-semibold text-white">
+                            Tenebris Light
+                          </h5>
+                          <p className="text-xs text-dark-text-muted">
+                            Modern light interface
+                          </p>
+                        </div>
+                      </div>
+                    </motion.button>
+                  </div>
+                </div>
+
+                {/* Classic Retro Themes */}
+                <div>
+                  <h4 className="text-sm font-medium text-white mb-3">
+                    Classic Retro Themes
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <motion.button
+                      onClick={() => changeTheme("retro-light")}
+                      className={`p-4 rounded-xl border-2 transition-all text-left ${
+                        getActiveTheme() === "retro-light"
+                          ? "border-accent-orange bg-accent-orange/10"
+                          : "border-dark-border bg-dark-surface hover:border-accent-orange/50"
+                      }`}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded bg-gradient-to-br from-blue-400 to-blue-600 border border-gray-400 flex items-center justify-center">
+                          <span className="text-white font-bold text-xs">
+                            XP
+                          </span>
+                        </div>
+                        <div>
+                          <h5 className="font-semibold text-white">
+                            Windows Classic
+                          </h5>
+                          <p className="text-xs text-dark-text-muted">
+                            Windows XP Luna style
+                          </p>
+                        </div>
+                      </div>
+                    </motion.button>
+
+                    <motion.button
+                      onClick={() => changeTheme("retro-dark")}
+                      className={`p-4 rounded-xl border-2 transition-all text-left ${
+                        getActiveTheme() === "retro-dark"
+                          ? "border-accent-purple bg-accent-purple/10"
+                          : "border-dark-border bg-dark-surface hover:border-accent-purple/50"
+                      }`}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded bg-gradient-to-br from-gray-700 to-gray-900 border border-blue-500 flex items-center justify-center">
+                          <span className="text-blue-400 font-bold text-xs">
+                            7
+                          </span>
+                        </div>
+                        <div>
+                          <h5 className="font-semibold text-white">
+                            Windows Classic Dark
+                          </h5>
+                          <p className="text-xs text-dark-text-muted">
+                            Vista/7 Aero dark style
+                          </p>
+                        </div>
+                      </div>
+                    </motion.button>
+
+                    <motion.button
+                      onClick={() => changeTheme("macos9-light")}
+                      className={`p-4 rounded-xl border-2 transition-all text-left ${
+                        getActiveTheme() === "macos9-light"
+                          ? "border-accent-green bg-accent-green/10"
+                          : "border-dark-border bg-dark-surface hover:border-accent-green/50"
+                      }`}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-gray-300 to-gray-400 border border-gray-500 flex items-center justify-center">
+                          <span className="text-gray-700 font-bold text-xs">
+                            9
+                          </span>
+                        </div>
+                        <div>
+                          <h5 className="font-semibold text-white">
+                            Mac OS 9 Platinum
+                          </h5>
+                          <p className="text-xs text-dark-text-muted">
+                            Classic Mac interface
+                          </p>
+                        </div>
+                      </div>
+                    </motion.button>
+
+                    <motion.button
+                      onClick={() => changeTheme("macos9-dark")}
+                      className={`p-4 rounded-xl border-2 transition-all text-left ${
+                        getActiveTheme() === "macos9-dark"
+                          ? "border-accent-blue bg-accent-blue/10"
+                          : "border-dark-border bg-dark-surface hover:border-accent-blue/50"
+                      }`}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-gray-600 to-gray-800 border border-gray-500 flex items-center justify-center">
+                          <span className="text-gray-300 font-bold text-xs">
+                            9
+                          </span>
+                        </div>
+                        <div>
+                          <h5 className="font-semibold text-white">
+                            Mac OS 9 Dark
+                          </h5>
+                          <p className="text-xs text-dark-text-muted">
+                            Dark Mac platinum
+                          </p>
+                        </div>
+                      </div>
+                    </motion.button>
+                  </div>
+                </div>
+
+                {/* Quick Toggle */}
+                <div className="flex items-center justify-between p-3 bg-dark-surface rounded-lg border border-dark-border">
+                  <div>
+                    <span className="text-sm font-medium text-white">
+                      Quick Theme Toggle
+                    </span>
+                    <p className="text-xs text-dark-text-muted">
+                      Switch between modern and classic instantly
+                    </p>
+                  </div>
+                  <motion.button
+                    onClick={toggleRetroTheme}
+                    className="px-4 py-2 bg-accent-purple rounded-lg text-white font-medium hover:bg-accent-purple/80 transition-colors"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    {getActiveTheme().includes("retro") ||
+                    getActiveTheme().includes("macos9")
+                      ? "Go Modern"
+                      : "Go Retro"}
+                  </motion.button>
+                </div>
+
+                {/* Active Theme Preview */}
+                {(getActiveTheme().includes("retro") ||
+                  getActiveTheme().includes("macos9")) && (
+                  <div className="p-4 bg-gradient-to-r from-blue-100 to-blue-200 rounded-lg border-2 border-blue-400">
+                    <div className="text-black text-sm">
+                      <div className="font-bold mb-2">
+                        🎉 Classic Theme Active!
+                      </div>
+                      <p>
+                        You're now using a nostalgic computing interface. The
+                        entire site has been transformed with authentic retro
+                        styling, typography, and interactions!
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </SettingItem>
 

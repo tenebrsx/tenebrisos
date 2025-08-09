@@ -1,4 +1,10 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Pin, Image, X } from "lucide-react";
 import { useMindmap } from "../../contexts/MindmapContext";
@@ -279,10 +285,8 @@ const MindBlock = ({
   const {
     updateBlock,
     deleteBlock,
-    duplicateBlock,
-    moveBlock,
-    setBlockPosition,
     selectBlock,
+    clearSelection,
     selectedBlocks,
     editingBlock,
     startEditing,
@@ -295,15 +299,33 @@ const MindBlock = ({
     startDragging,
     stopDragging,
     resizeBlock,
+    handleDynamicScaling,
+    handleLargePasteOperation,
   } = useMindmap();
 
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [content, setContent] = useState(block.content);
-  const [isImageUploading, setIsImageUploading] = useState(false);
+  const [content, setContent] = useState(block.content || "");
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isImageUploading, setIsImageUploading] = useState(false);
+  const [previousSize, setPreviousSize] = useState({
+    width: block.width || 200,
+    height: block.height || 100,
+  });
+  const [realTimeUpdateTimeout, setRealTimeUpdateTimeout] = useState(null);
   const [originalCursor, setOriginalCursor] = useState(null);
+  const [isLargePasteProcessing, setIsLargePasteProcessing] = useState(false);
+  const [isEmergencyScaling, setIsEmergencyScaling] = useState(false);
+  const [showPerformanceWarning, setShowPerformanceWarning] = useState(false);
+  const [contentLength, setContentLength] = useState(
+    block.content?.length || 0,
+  );
+  const [isExpanding, setIsExpanding] = useState(false);
+  const [targetSize, setTargetSize] = useState({
+    width: block.width || 200,
+    height: block.height || 100,
+  });
   const textareaRef = useRef(null);
   const blockRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -312,6 +334,23 @@ const MindBlock = ({
   const isEditing = editingBlock === block.id;
   const isPinned = pinnedBlocks.has(block.id);
   const moodTag = moodTags[block.moodTag] || moodTags.neutral;
+
+  // Cleanup timeout on unmount or when editing stops
+  useEffect(() => {
+    return () => {
+      if (realTimeUpdateTimeout) {
+        clearTimeout(realTimeUpdateTimeout);
+      }
+    };
+  }, [realTimeUpdateTimeout]);
+
+  // Clear timeout when editing stops
+  useEffect(() => {
+    if (!isEditing && realTimeUpdateTimeout) {
+      clearTimeout(realTimeUpdateTimeout);
+      setRealTimeUpdateTimeout(null);
+    }
+  }, [isEditing, realTimeUpdateTimeout]);
 
   // Auto-focus textarea when editing starts and cleanup cursor
   useEffect(() => {
@@ -630,6 +669,12 @@ const MindBlock = ({
   const handleSaveContent = () => {
     const trimmedContent = content.trim();
 
+    // Clear any pending real-time updates
+    if (realTimeUpdateTimeout) {
+      clearTimeout(realTimeUpdateTimeout);
+      setRealTimeUpdateTimeout(null);
+    }
+
     // Calculate final optimal size
     const optimalSize = calculateOptimalBlockSize(
       trimmedContent,
@@ -640,25 +685,214 @@ const MindBlock = ({
       !!block.image,
     );
 
-    // Update both content and size immediately when saving (no debounce needed)
+    // Check if significant change warrants dynamic scaling
+    const currentWidth = block.width || 200;
+    const currentHeight = block.height || 100;
+    const significantChange =
+      Math.abs(optimalSize.width - currentWidth) > 15 ||
+      Math.abs(optimalSize.height - currentHeight) > 15;
+
+    // Update both content and size
     if (
       trimmedContent !== block.content ||
       block.width !== optimalSize.width ||
       block.height !== optimalSize.height
     ) {
-      updateBlock(block.id, {
-        content: trimmedContent,
+      if (significantChange) {
+        // Use enhanced dynamic scaling for significant changes
+        handleDynamicScaling(
+          block.id,
+          {
+            content: trimmedContent,
+            width: optimalSize.width,
+            height: optimalSize.height,
+          },
+          previousSize,
+        );
+      } else {
+        // Standard update for minor changes
+        updateBlock(block.id, {
+          content: trimmedContent,
+          width: optimalSize.width,
+          height: optimalSize.height,
+        });
+      }
+
+      // Update previous size
+      setPreviousSize({
         width: optimalSize.width,
         height: optimalSize.height,
       });
     }
 
+    // Clear any pending real-time updates when saving
+    if (realTimeUpdateTimeout) {
+      clearTimeout(realTimeUpdateTimeout);
+      setRealTimeUpdateTimeout(null);
+    }
+
     stopEditing();
   };
 
-  // Handle content change
+  // Consolidated size calculation with conflict prevention
+  const performConsolidatedScaling = useCallback(
+    (newContent, isImmediate = false) => {
+      if (!isEditing || !newContent.trim()) return;
+
+      // Prevent multiple simultaneous calculations
+      if (realTimeUpdateTimeout && !isImmediate) {
+        clearTimeout(realTimeUpdateTimeout);
+        setRealTimeUpdateTimeout(null);
+      }
+
+      const optimalSize = calculateOptimalBlockSize(
+        newContent,
+        140,
+        80,
+        450,
+        320,
+        !!block.image,
+      );
+
+      // Check if size change is significant enough for dynamic scaling
+      const currentWidth = block.width || 200;
+      const currentHeight = block.height || 100;
+      const significantWidthChange =
+        Math.abs(optimalSize.width - currentWidth) > 10;
+      const significantHeightChange =
+        Math.abs(optimalSize.height - currentHeight) > 10;
+
+      // Update target size for immediate visual feedback (no repositioning)
+      setTargetSize(optimalSize);
+
+      if (significantWidthChange || significantHeightChange) {
+        // Only trigger dynamic scaling if this is the final calculation
+        if (isImmediate) {
+          handleDynamicScaling(
+            block.id,
+            {
+              content: newContent,
+              width: optimalSize.width,
+              height: optimalSize.height,
+            },
+            previousSize,
+          );
+
+          setPreviousSize({
+            width: optimalSize.width,
+            height: optimalSize.height,
+          });
+        }
+      } else {
+        // Minor change, just update content and size
+        updateBlock(block.id, {
+          content: newContent,
+          width: optimalSize.width,
+          height: optimalSize.height,
+        });
+      }
+    },
+    [
+      isEditing,
+      block.id,
+      block.width,
+      block.height,
+      block.image,
+      handleDynamicScaling,
+      updateBlock,
+      previousSize,
+      realTimeUpdateTimeout,
+    ],
+  );
+
+  // Handle content change with consolidated scaling to prevent multiple transitions
   const handleContentChange = (e) => {
-    setContent(e.target.value);
+    const newContent = e.target.value;
+    const previousContent = content;
+    setContent(newContent);
+
+    // Track content length changes for smooth expansion
+    const newLength = newContent.length;
+    const previousLength = contentLength;
+    setContentLength(newLength);
+
+    // Set expansion state for visual feedback only if significant change
+    if (Math.abs(newLength - previousLength) > 2) {
+      setIsExpanding(true);
+      setTimeout(() => {
+        setIsExpanding(false);
+      }, 300);
+    }
+
+    // Check if this is a large content change (likely a paste operation)
+    const charDiff = newContent.length - previousContent.length;
+    const isLikelyPaste = charDiff > 50;
+
+    if (isLikelyPaste) {
+      // Handle large paste immediately
+      setIsLargePasteProcessing(true);
+
+      const wasHandled = handleLargePasteOperation(
+        block.id,
+        newContent,
+        previousContent,
+      );
+
+      if (wasHandled) {
+        // Clear any existing timeout since paste was handled
+        if (realTimeUpdateTimeout) {
+          clearTimeout(realTimeUpdateTimeout);
+          setRealTimeUpdateTimeout(null);
+        }
+
+        // Clear indicators after animation
+        setTimeout(() => {
+          setIsLargePasteProcessing(false);
+        }, 1500);
+
+        if (newContent.length > 3000) {
+          setIsEmergencyScaling(true);
+          setTimeout(() => {
+            setIsEmergencyScaling(false);
+          }, 2000);
+        }
+
+        if (newContent.length > 8000) {
+          setShowPerformanceWarning(true);
+          setTimeout(() => {
+            setShowPerformanceWarning(false);
+          }, 3000);
+        }
+
+        return;
+      }
+    }
+
+    // Use consolidated scaling with immediate visual feedback but delayed dynamic scaling
+    performConsolidatedScaling(newContent, false);
+
+    // Set up debounced final scaling calculation
+    const timeoutId = setTimeout(() => {
+      performConsolidatedScaling(newContent, true);
+      setRealTimeUpdateTimeout(null);
+    }, 200); // Slightly longer debounce to prevent conflicts
+
+    setRealTimeUpdateTimeout(timeoutId);
+  };
+
+  // Handle paste operations specifically
+  const handlePaste = (e) => {
+    const pasteData = e.clipboardData.getData("text");
+
+    if (pasteData.length > 50) {
+      // Large paste detected, show immediate visual feedback
+      setIsLargePasteProcessing(true);
+
+      // The handleContentChange will detect this as a large change
+      // and trigger the appropriate dynamic scaling
+      // We don't prevent default here, let the paste happen normally
+      // and let handleContentChange detect and handle the large change
+    }
   };
 
   // Handle keyboard shortcuts in edit mode
@@ -679,7 +913,7 @@ const MindBlock = ({
     // Allow all other keys (including cmd+z for text undo) to work normally in textarea
   };
 
-  // Auto-resize textarea and update block size during editing
+  // Auto-resize textarea only - avoid conflicting with dynamic scaling
   const autoResize = () => {
     try {
       if (textareaRef.current) {
@@ -687,25 +921,8 @@ const MindBlock = ({
         textareaRef.current.style.height =
           textareaRef.current.scrollHeight + "px";
 
-        // Also calculate and update block size while editing
-        const optimalSize = calculateOptimalBlockSize(
-          content || "",
-          140,
-          80,
-          450,
-          320,
-          !!block.image,
-        );
-
-        // Update block size in real-time during editing with bounds checking
-        if (
-          blockRef.current &&
-          optimalSize.width > 0 &&
-          optimalSize.height > 0
-        ) {
-          blockRef.current.style.width = `${Math.min(optimalSize.width, 500)}px`;
-          blockRef.current.style.height = `${Math.min(optimalSize.height, 400)}px`;
-        }
+        // Don't update block size here to prevent conflicts with dynamic scaling
+        // The consolidated scaling system handles all size updates
       }
     } catch (error) {
       console.warn("Error during auto-resize:", error);
@@ -831,29 +1048,63 @@ const MindBlock = ({
       }}
       animate={{
         opacity: 1,
-        scale: isDragging ? 1.05 : isDragOver ? 1.02 : 1,
+        scale: isDragging ? 1.05 : isDragOver ? 1.02 : isExpanding ? 1.002 : 1,
         x: isDragging ? dragOffset.x : 0,
         y: isDragging ? dragOffset.y : 0,
         zIndex: isSelected || isEditing ? 50 : 10,
       }}
       whileHover={{
         scale: isEditing ? 1 : 1.02,
-        transition: { duration: 0.15 },
+        transition: { type: "spring", stiffness: 400, damping: 25 },
       }}
       transition={{
         type: "spring",
         stiffness: 300,
         damping: 30,
-        layout: { duration: 0.3, ease: "easeInOut" },
+        mass: 0.8,
+        layout: {
+          type: "spring",
+          stiffness: isExpanding ? 250 : 280,
+          damping: isExpanding ? 20 : 25,
+          mass: isExpanding ? 0.3 : 0.4,
+        },
+        width: {
+          type: "spring",
+          stiffness: 200,
+          damping: 20,
+          mass: 0.5,
+        },
+        height: {
+          type: "spring",
+          stiffness: 200,
+          damping: 20,
+          mass: 0.5,
+        },
       }}
     >
-      {/* Main block container */}
-      <div
+      {/* Main block container with smooth inner animations */}
+      <motion.div
+        layout
+        transition={{
+          layout: { type: "spring", stiffness: 200, damping: 25 },
+        }}
         className={clsx(
           "relative w-full h-full rounded-xl overflow-visible",
-          "backdrop-blur-xl border transition-all duration-200 block-resize-transition block-container",
+          "backdrop-blur-xl border block-container",
           {
             "block-with-image": !!block.image,
+            "dynamic-scaling-active":
+              realTimeUpdateTimeout !== null && isEditing,
+            "repositioning-neighbor": isRepositioning && !isEditing,
+            "chain-reaction": isRepositioning && !isEditing,
+            "large-paste-processing": isLargePasteProcessing,
+            "emergency-scaling": isEmergencyScaling,
+            "performance-warning": showPerformanceWarning,
+            "character-scaling-active":
+              isLargePasteProcessing && !isEmergencyScaling,
+            "block-growing": realTimeUpdateTimeout !== null,
+            "smooth-expanding": isExpanding && isEditing,
+            "expansion-active": isExpanding,
           },
           {
             // Dragging state with enhanced effects (highest priority)
@@ -1009,19 +1260,47 @@ const MindBlock = ({
             </div>
           )}
 
-          {/* Text content */}
-          <div className={block.image ? "mt-2" : ""}>
+          {/* Text content with breathing animation */}
+          <motion.div
+            layout
+            className={block.image ? "mt-2" : ""}
+            transition={{
+              layout: {
+                type: "spring",
+                stiffness: isExpanding ? 240 : 280,
+                damping: isExpanding ? 24 : 32,
+                mass: 0.5,
+              },
+            }}
+          >
             {isEditing ? (
-              <textarea
+              <motion.textarea
                 ref={textareaRef}
                 value={content}
                 onChange={handleContentChange}
                 onKeyDown={handleKeyDown}
                 onBlur={handleSaveContent}
                 onInput={autoResize}
+                onPaste={handlePaste}
                 onMouseDown={(e) => {
                   e.stopPropagation();
                   e.stopImmediatePropagation();
+                }}
+                layout
+                initial={{ scale: 0.98, opacity: 0.9 }}
+                animate={{
+                  scale: 1,
+                  opacity: 1,
+                }}
+                transition={{
+                  type: "spring",
+                  stiffness: 300,
+                  damping: 25,
+                  layout: {
+                    type: "spring",
+                    stiffness: 220,
+                    damping: 25,
+                  },
                 }}
                 onMouseMove={(e) => {
                   e.stopPropagation();
@@ -1041,6 +1320,7 @@ const MindBlock = ({
                   "w-full resize-none bg-transparent border-0 outline-none",
                   "text-dark-text placeholder-dark-text-muted",
                   "text-sm leading-relaxed font-medium block-textarea",
+                  "mindmap-textarea",
                 )}
                 placeholder="Enter your thought..."
                 style={{
@@ -1083,7 +1363,7 @@ const MindBlock = ({
                 )}
               </div>
             )}
-          </div>
+          </motion.div>
 
           {/* Image upload button and drag-drop indicator */}
           {!block.image && !isEditing && (
@@ -1217,7 +1497,7 @@ const MindBlock = ({
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
+      </motion.div>
     </motion.div>
   );
 };

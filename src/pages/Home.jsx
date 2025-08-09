@@ -21,11 +21,23 @@ import {
   Bell,
   Brain,
   Lightbulb,
+  Activity,
+  TrendingUp,
+  Star,
+  Command,
+  Wifi,
+  Battery,
+  Volume2,
+  Sun,
+  Cloud,
+  Moon,
 } from "lucide-react";
 import MagneticButton from "../components/MagneticButton";
 import StatusIndicator from "../components/StatusIndicator";
 import TimeTracker from "../components/TimeTracker";
 import WidgetSystem from "../components/widgets/WidgetSystem";
+import RetroButton, { RetroStartButton } from "../components/RetroButton";
+import RetroWindow from "../components/RetroWindow";
 import {
   createOpenAIService,
   createIntelligentOpenAIService,
@@ -36,6 +48,7 @@ import {
   saveToStorage,
   loadFromStorage,
 } from "../utils/helpers.js";
+
 const Home = () => {
   const navigate = useNavigate();
   const {
@@ -45,7 +58,10 @@ const Home = () => {
     scheduleActivityReminder,
     scheduleBreakReminder,
     trackEvent,
+    getActiveTheme,
   } = useSettings();
+
+  // State management
   const [currentTime, setCurrentTime] = useState(new Date());
   const [currentActivity, setCurrentActivity] = useState(null);
   const [nextActivity, setNextActivity] = useState(null);
@@ -61,27 +77,161 @@ const Home = () => {
     return loadFromStorage("schedule", {});
   });
 
-  // AI Learning Engine - Tenebris knows you better than you know yourself
+  // AI & Intelligence
   const [aiEngine] = useState(() => createAILearningEngine());
   const [intelligentService] = useState(() => createIntelligentOpenAIService());
   const [userInsights, setUserInsights] = useState(null);
   const [showAIInsights, setShowAIInsights] = useState(false);
 
-  // Today's Progress state
-  const [collapsedSections, setCollapsedSections] = useState({
-    morning: false,
-    afternoon: false,
-    evening: false,
+  // Dashboard state
+  const [systemStats, setSystemStats] = useState({
+    battery: 85,
+    wifi: true,
+    volume: 70,
+    weather: { temp: 72, condition: "sunny" },
+  });
+  const [dashboardLayout, setDashboardLayout] = useState("grid");
+  const [expandedPanels, setExpandedPanels] = useState({
+    focus: true,
+    metrics: true,
+    intelligence: true,
+    stream: true,
+  });
+  const [showWidgetDashboard, setShowWidgetDashboard] = useState(true);
+
+  // AI Suggested Actions state
+  const [suggestedActions, setSuggestedActions] = useState([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [lastSuggestionUpdate, setLastSuggestionUpdate] = useState(null);
+
+  // Widget system integration
+  const [widgets] = useState(() => {
+    try {
+      return (
+        loadFromStorage("homepage-widgets", [
+          {
+            id: "quote",
+            type: "quote",
+            position: 0,
+            visible: true,
+            size: "small",
+          },
+          {
+            id: "todos-today",
+            type: "todos-today",
+            position: 1,
+            visible: true,
+            size: "medium",
+          },
+          {
+            id: "notes",
+            type: "notes",
+            position: 2,
+            visible: true,
+            size: "medium",
+          },
+          {
+            id: "stats",
+            type: "stats",
+            position: 3,
+            visible: true,
+            size: "small",
+          },
+        ]) || []
+      );
+    } catch (error) {
+      return [];
+    }
   });
 
-  // Manual entry state
-  const [showManualEntry, setShowManualEntry] = useState(false);
-  const [manualEntry, setManualEntry] = useState({
-    name: "",
-    duration: "",
-    category: "personal",
-  });
+  const visibleWidgetCount = widgets.filter((w) => w.visible).length;
 
+  // Activity patterns and suggestions
+  const getActivityPatterns = () => {
+    const today = new Date();
+    const pastWeek = activities.filter((activity) => {
+      const activityDate = new Date(activity.startTime);
+      const daysDiff = (today - activityDate) / (1000 * 60 * 60 * 24);
+      return daysDiff <= 7 && !activity.isActive;
+    });
+
+    return {
+      frequent: pastWeek.reduce((acc, activity) => {
+        acc[activity.name] = (acc[activity.name] || 0) + 1;
+        return acc;
+      }, {}),
+      recent: pastWeek.slice(-5),
+      totalTime: pastWeek.reduce(
+        (acc, activity) => acc + (activity.duration || 0),
+        0,
+      ),
+      averageSession:
+        pastWeek.length > 0
+          ? pastWeek.reduce(
+              (acc, activity) => acc + (activity.duration || 0),
+              0,
+            ) / pastWeek.length
+          : 0,
+    };
+  };
+
+  const getSmartSuggestions = () => {
+    const patterns = getActivityPatterns();
+    const now = new Date();
+    const currentHour = now.getHours();
+
+    const baseActivities = [
+      {
+        id: "focus",
+        label: "Deep Focus",
+        icon: Zap,
+        color: "accent-purple",
+        duration: 90,
+        description: "Enter deep work mode",
+        pattern: "hexagon",
+      },
+      {
+        id: "learn",
+        label: "Learning",
+        icon: BookOpen,
+        color: "accent-blue",
+        duration: 60,
+        description: "Expand your knowledge",
+        pattern: "network",
+      },
+      {
+        id: "move",
+        label: "Movement",
+        icon: "🏃‍♂️",
+        color: "accent-green",
+        duration: 30,
+        description: "Physical activity",
+        pattern: "arrows",
+      },
+      {
+        id: "create",
+        label: "Create",
+        icon: "✨",
+        color: "accent-orange",
+        duration: 45,
+        description: "Build something new",
+        pattern: "stars",
+      },
+    ];
+
+    return baseActivities.map((activity) => ({
+      ...activity,
+      score: Math.random() * 10,
+      suggested: currentHour >= 9 && currentHour <= 17,
+    }));
+  };
+
+  const quickActions = useMemo(
+    () => getSmartSuggestions(),
+    [activities, currentTime],
+  );
+
+  // Event handlers
   const handleStartActivity = (activity) => {
     const newActivity = {
       id: Date.now(),
@@ -92,43 +242,19 @@ const Home = () => {
       type: activity.id,
       isActive: true,
       isPaused: false,
-      category: getActivityCategory(activity.label),
+      category: activity.id,
       plannedDuration: activity.duration,
     };
-
-    console.log("▶️ Home: Starting new activity", { activity: newActivity });
-
-    // Learn from this activity start
-    aiEngine.learnFromActivity(newActivity, {
-      dayOfWeek: new Date().getDay(),
-      hourOfDay: new Date().getHours(),
-      context: aiEngine.inferCurrentContext(),
-      source: "manual_start",
-    });
 
     setCurrentActivity(newActivity);
     setActivities((prev) => {
       const updated = [newActivity, ...prev];
       saveToStorage("activities", updated);
-      // Dispatch custom event to notify other components
-      console.log("📡 Home: Dispatching activityUpdated event");
       window.dispatchEvent(new CustomEvent("activityUpdated"));
       return updated;
     });
 
-    // Track event for analytics if enabled
-    trackEvent("activity_started", {
-      activityType: activity.id,
-      duration: activity.duration,
-    });
-
-    // Schedule activity reminder if enabled
-    if (settings?.notifications?.activityReminders) {
-      scheduleActivityReminder(activity.label, activity.duration * 60000); // Convert minutes to ms
-    }
-
-    // Show notification
-    showNotification("Activity Started", `Started ${activity.label} session`, {
+    showNotification("Focus Session Started", `Beginning ${activity.label}`, {
       tag: "activity-start",
     });
   };
@@ -138,7 +264,7 @@ const Home = () => {
       const endTime = new Date();
       const duration = Math.floor(
         (endTime - new Date(currentActivity.startTime)) / 1000 / 60,
-      ); // minutes
+      );
 
       const updatedActivity = {
         ...currentActivity,
@@ -157,568 +283,13 @@ const Home = () => {
       });
       setCurrentActivity(null);
 
-      // Play completion sound and show notification
       playSound("completion");
       showNotification(
-        "Activity Completed",
-        `Completed ${currentActivity.name} in ${Math.floor(duration / 60)}h ${duration % 60}m`,
+        "Session Complete",
+        `Completed ${currentActivity.name} • ${Math.floor(duration / 60)}h ${duration % 60}m`,
         { tag: "activity-complete" },
       );
-
-      // Track completion event
-      trackEvent("activity_completed", {
-        activityType: currentActivity.type,
-        duration: duration,
-      });
-
-      // Schedule break reminder if auto-breaks are enabled
-      if (settings?.activity?.autoStartBreaks) {
-        scheduleBreakReminder(5 * 60000); // 5 minute break reminder
-      }
     }
-  };
-
-  // Update current time every minute and check for scheduled activities
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const now = new Date();
-      setCurrentTime(now);
-      checkScheduledActivity(now);
-    }, 60000);
-
-    // Check immediately on mount
-    checkScheduledActivity(new Date());
-
-    return () => clearInterval(timer);
-  }, [schedule]);
-
-  // Refresh activities from localStorage to sync with other components
-  useEffect(() => {
-    const refreshActivities = () => {
-      const latestActivities = loadFromStorage("activities", []);
-
-      // Check if there are actual changes to prevent unnecessary updates
-      setActivities((prevActivities) => {
-        const prevIds = prevActivities.map((a) => a.id).sort();
-        const newIds = latestActivities.map((a) => a.id).sort();
-        const idsChanged = JSON.stringify(prevIds) !== JSON.stringify(newIds);
-
-        // Also check if any activity status changed
-        const statusChanged = prevActivities.some((prev) => {
-          const current = latestActivities.find((a) => a.id === prev.id);
-          return (
-            current &&
-            (current.isActive !== prev.isActive ||
-              current.isPaused !== prev.isPaused ||
-              current.endTime !== prev.endTime)
-          );
-        });
-
-        if (
-          !idsChanged &&
-          !statusChanged &&
-          prevActivities.length === latestActivities.length
-        ) {
-          return prevActivities;
-        }
-
-        // Update current activity - prefer non-paused, but show paused if that's all we have
-        let activeActivity = latestActivities.find(
-          (a) => a.isActive && !a.isPaused,
-        );
-
-        // If no non-paused active activity, look for any active activity (including paused)
-        if (!activeActivity) {
-          activeActivity = latestActivities.find((a) => a.isActive);
-        }
-
-        console.log("🔍 Home: Searching for active activity", {
-          totalActivities: latestActivities.length,
-          activeActivities: latestActivities.filter((a) => a.isActive),
-          nonPausedActive: latestActivities.filter(
-            (a) => a.isActive && !a.isPaused,
-          ),
-          foundActive: activeActivity,
-          currentActivity: currentActivity?.id,
-          isPaused: activeActivity?.isPaused || false,
-        });
-        setCurrentActivity(activeActivity || null);
-
-        return latestActivities;
-      });
-    };
-
-    // Listen for storage events and custom events
-    const handleStorageChange = (e) => {
-      if (e.key === "activities") {
-        refreshActivities();
-      }
-    };
-
-    const handleActivityUpdate = () => {
-      console.log("🔄 Home: Activity update event received, refreshing...");
-      refreshActivities();
-    };
-
-    // Listen for focus events to refresh when returning to tab
-    const handleFocus = () => {
-      refreshActivities();
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-    window.addEventListener("activityUpdated", handleActivityUpdate);
-    window.addEventListener("focus", handleFocus);
-
-    // Initial refresh on mount and when page becomes visible
-    console.log(
-      "🏠 Home: Component mounting, setting up listeners and refreshing activities",
-    );
-    refreshActivities();
-
-    // Initialize AI insights
-    setUserInsights(aiEngine.getUserInsights());
-    console.log("🧠 AI: User insights loaded", {
-      confidence: aiEngine.userProfile.confidenceLevel,
-      activities: activities.length,
-    });
-
-    // Also refresh immediately if coming from ThingsToDo or command palette
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get("refresh") === "activities") {
-      console.log(
-        "🔄 Home: URL refresh parameter detected, scheduling refresh",
-      );
-      setTimeout(() => {
-        console.log("🔄 Home: Executing scheduled refresh from URL parameter");
-        refreshActivities();
-      }, 200);
-
-      // Clean up URL parameter
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      window.removeEventListener("activityUpdated", handleActivityUpdate);
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, []);
-
-  const checkScheduledActivity = (now) => {
-    const currentDay = now
-      .toLocaleDateString("en-US", {
-        weekday: "long",
-      })
-      .toLowerCase();
-    const currentTimeStr = now.toTimeString().slice(0, 5); // HH:MM format
-
-    const todaySchedule = schedule[currentDay] || [];
-    const upcomingActivity = todaySchedule.find((activity) => {
-      const activityTime = activity.startTime;
-      const timeDiff =
-        new Date(`1970/01/01 ${activityTime}`) -
-        new Date(`1970/01/01 ${currentTimeStr}`);
-      return timeDiff >= 0 && timeDiff <= 5 * 60 * 1000; // Within 5 minutes
-    });
-
-    // Set next activity (for Next Up section)
-    const nextUp = todaySchedule.find((activity) => {
-      const activityTime = activity.startTime;
-      return (
-        new Date(`1970/01/01 ${activityTime}`) >
-        new Date(`1970/01/01 ${currentTimeStr}`)
-      );
-    });
-    setNextActivity(nextUp);
-
-    // Handle scheduled activities
-    if (!currentActivity) {
-      if (upcomingActivity) {
-        // Activity within 5 minutes - show modal prompt
-        setScheduledActivity(upcomingActivity);
-        setShowActivityPrompt(true);
-      } else if (nextUp) {
-        // Next scheduled activity - show in Ready to Focus component
-        setScheduledActivity(nextUp);
-        setShowActivityPrompt(false);
-      } else {
-        // No scheduled activities
-        setScheduledActivity(null);
-        setShowActivityPrompt(false);
-      }
-    }
-  };
-
-  // Activities are now saved directly in handlers to prevent unnecessary re-renders
-
-  // Smart activity suggestions based on user patterns
-  const getActivityPatterns = () => {
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
-
-    // Analyze user's historical activities
-    const userActivities = activities.filter((activity) => !activity.isActive);
-    const recentActivities = userActivities.slice(0, 20); // Last 20 activities
-
-    // Get activities for this time of day (±2 hours)
-    const timeBasedActivities = userActivities.filter((activity) => {
-      const activityHour = new Date(activity.startTime).getHours();
-      return Math.abs(activityHour - currentHour) <= 2;
-    });
-
-    // Get activities for this day of week
-    const dayBasedActivities = userActivities.filter((activity) => {
-      const activityDay = new Date(activity.startTime).getDay();
-      return activityDay === currentDay;
-    });
-
-    return {
-      recent: recentActivities,
-      timeBasedFrequency: getActivityFrequency(timeBasedActivities),
-      dayBasedFrequency: getActivityFrequency(dayBasedActivities),
-      overall: getActivityFrequency(userActivities),
-    };
-  };
-
-  const getActivityFrequency = (activitiesList) => {
-    const frequency = {};
-    activitiesList.forEach((activity) => {
-      const key = activity.name.toLowerCase();
-      frequency[key] = (frequency[key] || 0) + 1;
-    });
-
-    return Object.entries(frequency)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([name, count]) => ({ name, count }));
-  };
-
-  const getSmartSuggestions = () => {
-    const patterns = getActivityPatterns();
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentDay = now.getDay();
-
-    // Default activities with smart timing
-    const baseActivities = [
-      {
-        id: "run",
-        label: "Start Running",
-        icon: "🏃‍♂️",
-        color: "accent-green",
-        duration: settings?.activity?.defaultDuration || 30,
-        timePreference: [6, 7, 8, 17, 18, 19], // Morning and evening
-        dayPreference: [1, 2, 3, 4, 5, 6], // Weekdays and Saturday
-      },
-      {
-        id: "learn",
-        label: "Begin Learning",
-        icon: BookOpen,
-        color: "accent-blue",
-        duration: settings?.activity?.defaultDuration || 60,
-        timePreference: [9, 10, 11, 14, 15, 16, 19, 20], // Morning and afternoon
-        dayPreference: [0, 1, 2, 3, 4, 5, 6], // Any day
-      },
-      {
-        id: "focus",
-        label: "Stay Focused",
-        icon: Zap,
-        color: "accent-purple",
-        duration: 25,
-        timePreference: [9, 10, 11, 13, 14, 15, 16], // Work hours
-        dayPreference: [1, 2, 3, 4, 5], // Weekdays
-      },
-      {
-        id: "workout",
-        label: "Workout Session",
-        icon: Dumbbell,
-        color: "accent-orange",
-        duration: 45,
-        timePreference: [6, 7, 8, 17, 18, 19], // Morning and evening
-        dayPreference: [1, 2, 3, 4, 5, 6], // Weekdays and Saturday
-      },
-      {
-        id: "reading",
-        label: "Reading Time",
-        icon: BookOpen,
-        color: "accent-blue",
-        duration: 30,
-        timePreference: [19, 20, 21, 22], // Evening
-        dayPreference: [0, 6], // Weekends
-      },
-      {
-        id: "meditation",
-        label: "Meditation",
-        icon: "🧘‍♂️",
-        color: "accent-green",
-        duration: 15,
-        timePreference: [6, 7, 8, 21, 22], // Morning and night
-        dayPreference: [0, 1, 2, 3, 4, 5, 6], // Any day
-      },
-    ];
-
-    // Score activities based on patterns and preferences
-    const scoredActivities = baseActivities.map((activity) => {
-      let score = 0;
-
-      // Time preference score
-      if (activity.timePreference.includes(currentHour)) {
-        score += 3;
-      }
-
-      // Day preference score
-      if (activity.dayPreference.includes(currentDay)) {
-        score += 2;
-      }
-
-      // User frequency score
-      const userFreq = patterns.timeBasedFrequency.find(
-        (f) =>
-          f.name.toLowerCase().includes(activity.id) ||
-          activity.label.toLowerCase().includes(f.name),
-      );
-      if (userFreq) {
-        score += userFreq.count;
-      }
-
-      // Recent activity bonus
-      const hasRecent = patterns.recent.some(
-        (recent) =>
-          recent.name.toLowerCase().includes(activity.id) ||
-          activity.label.toLowerCase().includes(recent.name.toLowerCase()),
-      );
-      if (hasRecent) {
-        score += 1;
-      }
-
-      return { ...activity, score };
-    });
-
-    // Get top 3 suggestions
-    const suggestions = scoredActivities
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 3);
-
-    // If user has no history, return time-based defaults
-    if (activities.length === 0) {
-      if (currentHour >= 6 && currentHour <= 11) {
-        return [
-          baseActivities.find((a) => a.id === "run"),
-          baseActivities.find((a) => a.id === "learn"),
-          baseActivities.find((a) => a.id === "meditation"),
-        ];
-      } else if (currentHour >= 12 && currentHour <= 17) {
-        return [
-          baseActivities.find((a) => a.id === "focus"),
-          baseActivities.find((a) => a.id === "learn"),
-          baseActivities.find((a) => a.id === "workout"),
-        ];
-      } else {
-        return [
-          baseActivities.find((a) => a.id === "reading"),
-          baseActivities.find((a) => a.id === "meditation"),
-          baseActivities.find((a) => a.id === "learn"),
-        ];
-      }
-    }
-
-    return suggestions;
-  };
-
-  const quickActions = useMemo(
-    () => getSmartSuggestions(),
-    [activities, currentTime, settings, schedule],
-  );
-
-  const handleStartScheduledActivity = () => {
-    if (scheduledActivity) {
-      console.log("🎯 Home: Starting scheduled activity", {
-        scheduledActivity,
-      });
-
-      // Record that user accepted the scheduled activity - positive reinforcement for AI
-      intelligentService.recordUserChoice(
-        scheduledActivity,
-        "accepted_scheduled",
-        {
-          timeOfDay: new Date().getHours(),
-          dayOfWeek: new Date().getDay(),
-          context: aiEngine.inferCurrentContext(),
-          onTime: true,
-        },
-      );
-
-      handleStartActivity({
-        label: scheduledActivity.activity,
-        id: scheduledActivity.category || "scheduled",
-        duration: scheduledActivity.duration || 60,
-      });
-    }
-    setShowActivityPrompt(false);
-    setScheduledActivity(null);
-  };
-
-  const handleSkipActivity = () => {
-    if (scheduledActivity) {
-      // Record that user skipped - important learning signal
-      intelligentService.recordUserChoice(
-        scheduledActivity,
-        "rejected_scheduled",
-        {
-          timeOfDay: new Date().getHours(),
-          dayOfWeek: new Date().getDay(),
-          context: aiEngine.inferCurrentContext(),
-          reason: "skipped",
-        },
-      );
-
-      console.log(
-        "🧠 AI Learning: User skipped scheduled activity, updating preferences...",
-      );
-    }
-
-    setShowActivityPrompt(false);
-    setScheduledActivity(null);
-  };
-
-  const handleDoingSomethingElse = async () => {
-    setIsLoadingAlternatives(true);
-    console.log(
-      "🧠 AI: User wants something else, generating intelligent suggestions...",
-    );
-
-    try {
-      // Get current user state and context
-      const userState = aiEngine.getCurrentUserState();
-      const availableTime = scheduledActivity?.duration || 60;
-
-      // Generate highly intelligent suggestions using AI learning
-      const intelligentSuggestions =
-        await intelligentService.generateActivitySuggestions(
-          scheduledActivity?.activity || "current activity",
-          availableTime,
-          {
-            currentTime: new Date().toTimeString().slice(0, 5),
-            dayOfWeek: new Date()
-              .toLocaleDateString("en-US", { weekday: "long" })
-              .toLowerCase(),
-            recentActivities: activities
-              .slice(0, 10)
-              .map((a) => a.name)
-              .join(", "),
-            scheduledActivity: scheduledActivity?.activity,
-            userState: userState,
-            context: userState.context,
-          },
-        );
-
-      console.log("🎯 AI: Generated intelligent suggestions", {
-        count: intelligentSuggestions.suggestions?.length || 0,
-        confidence: intelligentSuggestions.confidence || 0,
-        hasAIInsight: !!intelligentSuggestions.aiInsight,
-      });
-
-      // Use AI-generated suggestions if available, otherwise use learning engine fallback
-      let suggestions = intelligentSuggestions.suggestions || [];
-
-      if (suggestions.length === 0) {
-        // Fallback to learning engine suggestions
-        const fallbackSuggestions = aiEngine.getIntelligentSuggestions({
-          availableTime,
-          currentActivity: scheduledActivity?.activity,
-          context: userState.context,
-        });
-
-        suggestions = fallbackSuggestions.slice(0, 6);
-        console.log("🔄 AI: Using learning engine fallback", {
-          count: suggestions.length,
-        });
-      }
-
-      // Ensure we have at least some suggestions
-      if (suggestions.length === 0) {
-        suggestions = [
-          {
-            activity: "Quick meditation",
-            duration: 10,
-            category: "personal",
-            reason: "Reset and refocus your mind",
-            personalFit: 0.8,
-          },
-          {
-            activity: "Gentle movement",
-            duration: 15,
-            category: "fitness",
-            reason: "Boost energy and clarity",
-            personalFit: 0.7,
-          },
-          {
-            activity: "Creative break",
-            duration: 20,
-            category: "personal",
-            reason: "Stimulate different thinking",
-            personalFit: 0.6,
-          },
-        ];
-      }
-
-      // Store AI insight if provided
-      if (intelligentSuggestions.aiInsight) {
-        console.log("💡 AI Insight:", intelligentSuggestions.aiInsight);
-      }
-
-      setAlternativeActivities(suggestions);
-    } catch (error) {
-      console.error("Error getting intelligent alternatives:", error);
-
-      // Ultimate fallback
-      setAlternativeActivities([
-        {
-          activity: "Mindful breathing",
-          duration: 5,
-          category: "personal",
-          reason: "Quick reset and refocus",
-          personalFit: 0.9,
-        },
-        {
-          activity: "Free time",
-          duration: 30,
-          category: "personal",
-          reason: "Do what feels right in the moment",
-          personalFit: 0.5,
-        },
-      ]);
-    } finally {
-      setIsLoadingAlternatives(false);
-      setShowAlternatives(true);
-    }
-  };
-
-  const handleSelectAlternative = (alternative) => {
-    console.log("🎯 Home: Starting alternative activity", { alternative });
-
-    // Record this choice for AI learning - this is critical intelligence!
-    intelligentService.recordUserChoice(alternative, "accepted", {
-      originalActivity: scheduledActivity?.activity,
-      timeOfDay: new Date().getHours(),
-      dayOfWeek: new Date().getDay(),
-      context: aiEngine.inferCurrentContext(),
-      personalFit: alternative.personalFit || 0.5,
-    });
-
-    console.log(
-      "🧠 AI Learning: User chose alternative, learning preferences...",
-    );
-
-    handleStartActivity({
-      label: alternative.activity,
-      id: alternative.category || "alternative",
-      duration: alternative.duration || 30,
-    });
-    setShowAlternatives(false);
-    setShowActivityPrompt(false);
-    setScheduledActivity(null);
   };
 
   const handlePauseActivity = () => {
@@ -729,79 +300,20 @@ const Home = () => {
       };
 
       setCurrentActivity(updatedActivity);
-
-      // Update activities array and save to storage
       setActivities((prev) => {
         const updated = prev.map((activity) =>
           activity.id === currentActivity.id ? updatedActivity : activity,
         );
         saveToStorage("activities", updated);
-        window.dispatchEvent(new CustomEvent("activityUpdated"));
         return updated;
       });
-
-      // Show notification for pause/resume
-      showNotification(
-        updatedActivity.isPaused ? "Activity Paused" : "Activity Resumed",
-        `${updatedActivity.isPaused ? "Paused" : "Resumed"} ${currentActivity.name}`,
-        { tag: "activity-pause-resume" },
-      );
     }
   };
 
   const getTimeElapsed = () => {
     if (!currentActivity) return 0;
     const now = new Date();
-    return Math.floor((now - new Date(currentActivity.startTime)) / 1000 / 60); // minutes
-  };
-
-  // Helper functions for Today's Progress
-  const getTimeOfDay = (date) => {
-    const hour = new Date(date).getHours();
-    if (hour < 12) return "morning";
-    if (hour < 17) return "afternoon";
-    return "evening";
-  };
-
-  const getActivityColor = (activityName) => {
-    const name = activityName.toLowerCase();
-    if (name.includes("run")) return "bg-accent-orange";
-    if (name.includes("stretch") || name.includes("yoga"))
-      return "bg-accent-blue";
-    if (name.includes("learn") || name.includes("study"))
-      return "bg-accent-blue";
-    if (name.includes("focus") || name.includes("work"))
-      return "bg-accent-purple";
-    if (name.includes("break") || name.includes("rest"))
-      return "bg-accent-green";
-    return "bg-accent-blue";
-  };
-
-  const consolidateActivities = (activities) => {
-    const consolidated = {};
-
-    activities.forEach((activity) => {
-      const key = `${activity.name}_${getTimeOfDay(activity.startTime)}`;
-
-      if (consolidated[key]) {
-        consolidated[key].count += 1;
-        consolidated[key].totalDuration += activity.duration || 0;
-        consolidated[key].activities.push(activity);
-      } else {
-        consolidated[key] = {
-          name: activity.name,
-          duration: activity.duration || 0,
-          totalDuration: activity.duration || 0,
-          startTime: activity.startTime,
-          timeOfDay: getTimeOfDay(activity.startTime),
-          color: getActivityColor(activity.name),
-          count: 1,
-          activities: [activity],
-        };
-      }
-    });
-
-    return Object.values(consolidated);
+    return Math.floor((now - new Date(currentActivity.startTime)) / 1000 / 60);
   };
 
   const getTodayActivities = () => {
@@ -813,841 +325,1209 @@ const Home = () => {
     );
   };
 
-  const groupActivitiesByTime = () => {
+  const getTodayStats = () => {
     const todayActivities = getTodayActivities();
-    const consolidated = consolidateActivities(todayActivities);
+    const totalMinutes = todayActivities.reduce(
+      (acc, activity) => acc + (activity.duration || 0),
+      0,
+    );
 
-    const grouped = {
-      morning: [],
-      afternoon: [],
-      evening: [],
+    return {
+      sessions: todayActivities.length,
+      totalTime: totalMinutes,
+      avgSession:
+        todayActivities.length > 0 ? totalMinutes / todayActivities.length : 0,
+      focusTime: todayActivities
+        .filter(
+          (a) =>
+            a.name.toLowerCase().includes("focus") ||
+            a.name.toLowerCase().includes("work"),
+        )
+        .reduce((acc, activity) => acc + (activity.duration || 0), 0),
+    };
+  };
+
+  // Generate AI-powered suggested actions based on user patterns and context
+  const generateSuggestedActions = async () => {
+    if (loadingSuggestions) return;
+
+    setLoadingSuggestions(true);
+    setLastSuggestionUpdate(new Date());
+
+    try {
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentDay = now.getDay();
+      const patterns = getActivityPatterns();
+
+      // Get user context from AI learning engine
+      const userState = aiEngine.getCurrentUserState();
+      const insights = aiEngine.getUserInsights();
+
+      // Determine time of day context
+      let timeContext = "morning";
+      if (currentHour >= 12 && currentHour < 17) timeContext = "afternoon";
+      else if (currentHour >= 17) timeContext = "evening";
+
+      // Determine energy/focus level based on time and patterns
+      let energyLevel = "medium";
+      if (currentHour >= 9 && currentHour <= 11) energyLevel = "high";
+      else if (currentHour >= 14 && currentHour <= 16) energyLevel = "high";
+      else if (currentHour >= 20) energyLevel = "low";
+
+      // Get recent activity trends
+      const recentActivities = activities.slice(0, 10);
+      const lastActivity = recentActivities[0];
+
+      // Base suggestions pool with context-aware weighting
+      const baseSuggestions = [
+        {
+          id: "focus-deep",
+          label: "Deep Focus Session",
+          description: "90-minute focused work block",
+          duration: 90,
+          icon: Brain,
+          color: "accent-purple",
+          category: "productivity",
+          timePreference: [9, 10, 11, 14, 15, 16],
+          energyLevel: ["high"],
+          reasoning: "Perfect for complex tasks requiring sustained attention",
+        },
+        {
+          id: "quick-movement",
+          label: "Quick Movement",
+          description: "Short energizing exercise",
+          duration: 15,
+          icon: "🚶‍♂️",
+          color: "accent-green",
+          category: "fitness",
+          timePreference: [8, 12, 16, 18],
+          energyLevel: ["medium", "low"],
+          reasoning: "Boost energy and improve focus",
+        },
+        {
+          id: "creative-break",
+          label: "Creative Break",
+          description: "Spark inspiration and new ideas",
+          duration: 20,
+          icon: "🎨",
+          color: "accent-orange",
+          category: "creative",
+          timePreference: [10, 14, 19],
+          energyLevel: ["medium", "high"],
+          reasoning: "Change mental context and stimulate creativity",
+        },
+        {
+          id: "mindful-moment",
+          label: "Mindful Moment",
+          description: "Brief meditation or breathing",
+          duration: 10,
+          icon: "🧘‍♂️",
+          color: "accent-blue",
+          category: "wellness",
+          timePreference: [7, 12, 17, 21],
+          energyLevel: ["low", "medium"],
+          reasoning: "Reset mental state and reduce stress",
+        },
+        {
+          id: "skill-building",
+          label: "Skill Building",
+          description: "Learn something new",
+          duration: 45,
+          icon: BookOpen,
+          color: "accent-blue",
+          category: "learning",
+          timePreference: [9, 10, 14, 15, 19, 20],
+          energyLevel: ["medium", "high"],
+          reasoning: "Continuous improvement and growth",
+        },
+        {
+          id: "organize-space",
+          label: "Organize Space",
+          description: "Tidy up your environment",
+          duration: 25,
+          icon: "🗂️",
+          color: "accent-green",
+          category: "organization",
+          timePreference: [8, 13, 17],
+          energyLevel: ["medium"],
+          reasoning: "Clear space leads to clear mind",
+        },
+        {
+          id: "social-connect",
+          label: "Social Connection",
+          description: "Reach out to someone you care about",
+          duration: 30,
+          icon: "💬",
+          color: "accent-purple",
+          category: "social",
+          timePreference: [11, 13, 16, 19],
+          energyLevel: ["medium", "high"],
+          reasoning: "Strengthen relationships and boost mood",
+        },
+        {
+          id: "reflection-time",
+          label: "Reflection Time",
+          description: "Journal or review your progress",
+          duration: 20,
+          icon: "📝",
+          color: "accent-orange",
+          category: "reflection",
+          timePreference: [8, 18, 20, 21],
+          energyLevel: ["low", "medium"],
+          reasoning: "Process thoughts and plan ahead",
+        },
+      ];
+
+      // Score suggestions based on context
+      const scoredSuggestions = baseSuggestions.map((suggestion) => {
+        let score = 0;
+
+        // Time-based scoring
+        if (suggestion.timePreference.includes(currentHour)) score += 3;
+
+        // Energy level match
+        if (suggestion.energyLevel.includes(energyLevel)) score += 2;
+
+        // Avoid recent duplicates
+        const hasRecentSimilar = recentActivities.some((activity) =>
+          activity.name
+            .toLowerCase()
+            .includes(suggestion.label.toLowerCase().split(" ")[0]),
+        );
+        if (hasRecentSimilar) score -= 2;
+
+        // User pattern analysis
+        const userFrequency = patterns.frequent[suggestion.label] || 0;
+        score += Math.min(userFrequency * 0.5, 2);
+
+        // Balance different categories
+        const categoryCount = recentActivities.filter(
+          (activity) => activity.category === suggestion.category,
+        ).length;
+        if (categoryCount > 3) score -= 1;
+
+        // Boost complementary activities
+        if (lastActivity) {
+          if (
+            lastActivity.category === "productivity" &&
+            suggestion.category === "wellness"
+          )
+            score += 1;
+          if (
+            lastActivity.category === "fitness" &&
+            suggestion.category === "learning"
+          )
+            score += 1;
+          if (lastActivity.duration > 60 && suggestion.duration <= 20)
+            score += 1;
+        }
+
+        // Add some randomness for variety
+        score += Math.random() * 0.5;
+
+        return { ...suggestion, score, timeContext, energyLevel };
+      });
+
+      // Select top 4-6 suggestions
+      const selectedSuggestions = scoredSuggestions
+        .sort((a, b) => b.score - a.score)
+        .slice(0, Math.random() > 0.5 ? 5 : 4)
+        .map((suggestion) => ({
+          ...suggestion,
+          confidence: Math.min(0.9, Math.max(0.3, suggestion.score / 5)),
+          timestamp: now.toISOString(),
+        }));
+
+      setSuggestedActions(selectedSuggestions);
+
+      console.log("🎯 AI: Generated suggested actions", {
+        count: selectedSuggestions.length,
+        timeContext,
+        energyLevel,
+        avgConfidence:
+          selectedSuggestions.reduce((acc, s) => acc + s.confidence, 0) /
+          selectedSuggestions.length,
+      });
+    } catch (error) {
+      console.error("Error generating suggested actions:", error);
+
+      // Fallback suggestions
+      setSuggestedActions([
+        {
+          id: "fallback-1",
+          label: "Take a Break",
+          description: "Step away and recharge",
+          duration: 15,
+          icon: Coffee,
+          color: "accent-green",
+          reasoning: "Sometimes the best thing is to pause",
+          confidence: 0.8,
+        },
+        {
+          id: "fallback-2",
+          label: "Quick Focus",
+          description: "25-minute focused session",
+          duration: 25,
+          icon: Target,
+          color: "accent-blue",
+          reasoning: "Short, achievable productivity boost",
+          confidence: 0.7,
+        },
+      ]);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
+  // Effects
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const refreshActivities = () => {
+      const latestActivities = loadFromStorage("activities", []);
+      setActivities(latestActivities);
+
+      const activeActivity = latestActivities.find((a) => a.isActive);
+      setCurrentActivity(activeActivity || null);
     };
 
-    consolidated.forEach((activity) => {
-      grouped[activity.timeOfDay].push(activity);
-    });
+    window.addEventListener("activityUpdated", refreshActivities);
+    refreshActivities();
 
-    // Sort each group by start time
-    Object.keys(grouped).forEach((timeOfDay) => {
-      grouped[timeOfDay].sort(
-        (a, b) => new Date(a.startTime) - new Date(b.startTime),
-      );
-    });
+    return () =>
+      window.removeEventListener("activityUpdated", refreshActivities);
+  }, []);
 
-    return grouped;
-  };
+  useEffect(() => {
+    setUserInsights(aiEngine.getUserInsights());
 
-  const toggleSection = (section) => {
-    setCollapsedSections((prev) => ({
-      ...prev,
-      [section]: !prev[section],
-    }));
-  };
-
-  const formatDurationDisplay = (minutes) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
-  };
-
-  const handleManualEntry = () => {
-    if (!manualEntry.name || !manualEntry.duration) return;
-
+    // Generate suggestions when activities change or every 30 minutes
     const now = new Date();
-    const durationMinutes = parseInt(manualEntry.duration);
-    const startTime = new Date(now.getTime() - durationMinutes * 60000);
+    const shouldUpdate =
+      !lastSuggestionUpdate || now - lastSuggestionUpdate > 30 * 60 * 1000; // 30 minutes
 
-    const newActivity = {
-      id: Date.now(),
-      name: manualEntry.name,
-      startTime: startTime.toISOString(),
-      endTime: now.toISOString(),
-      duration: durationMinutes,
-      type: manualEntry.category,
-      isActive: false,
-      isPaused: false,
-      category: manualEntry.category,
-      isManual: true,
-    };
+    if (shouldUpdate && activities.length > 0) {
+      generateSuggestedActions();
+    }
+  }, [activities]);
 
-    setActivities((prev) => {
-      const updated = [newActivity, ...prev];
-      saveToStorage("activities", updated);
-      window.dispatchEvent(new CustomEvent("activityUpdated"));
-      return updated;
-    });
+  // Generate initial suggestions on mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      generateSuggestedActions();
+    }, 2000); // Wait 2 seconds after mount
 
-    // Reset form and close modal
-    setManualEntry({ name: "", duration: "", category: "personal" });
-    setShowManualEntry(false);
+    return () => clearTimeout(timer);
+  }, []);
 
-    // Show notification
-    showNotification("Activity Logged", `Manually logged ${manualEntry.name}`, {
-      tag: "manual-entry",
-    });
-
-    // Track event
-    trackEvent("manual_activity_logged", {
-      activityType: manualEntry.category,
-      duration: durationMinutes,
-    });
+  // Animation variants
+  const panelVariants = {
+    hidden: { opacity: 0, scale: 0.95 },
+    visible: { opacity: 1, scale: 1, transition: { duration: 0.3 } },
   };
 
-  const fadeInUp = {
-    initial: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.5, ease: "easeOut" },
-  };
-
-  const staggerContainer = {
-    animate: {
-      transition: {
-        staggerChildren: 0.1,
-      },
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: { staggerChildren: 0.1 },
     },
   };
 
+  const stats = getTodayStats();
+  const isRetroTheme = getActiveTheme() === "retro";
+
   return (
-    <div className="min-h-screen bg-dark-bg pb-24">
-      {/* Top Navigation */}
-      <motion.div
-        className="fixed top-0 left-0 right-0 z-40 glass border-b border-white/10 backdrop-blur-xl"
-        initial={{ y: -100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
+    <div className="min-h-screen bg-dark-bg text-white">
+      {/* Dashboard Header - Command Center Style */}
+      <motion.header
+        className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/10"
+        initial={{ y: -100 }}
+        animate={{ y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <div className="container-dashboard py-4">
-          <div className="flex items-center justify-between">
-            {/* Logo and Time */}
-            <div className="flex items-center space-x-6">
-              <motion.h1
-                className="text-xl font-display font-bold text-gradient-blue"
-                animate={{
-                  backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
-                }}
-                transition={{
-                  duration: 8,
-                  repeat: Infinity,
-                  ease: "linear",
-                }}
-              >
-                TENEBRIS OS
-              </motion.h1>
-              <div className="hidden md:block text-sm text-dark-text-muted">
-                {currentTime.toLocaleDateString("en-US", {
-                  weekday: "long",
-                  month: "long",
-                  day: "numeric",
-                })}{" "}
-                • {formatTime(currentTime)}
-              </div>
-            </div>
-
-            {/* Top Navigation Items */}
-            <div className="flex items-center space-x-4">
-              {/* AI Insights Button - Only show when AI knows enough about user */}
-              {userInsights && userInsights.confidence > 0.3 && (
-                <motion.button
-                  onClick={() => setShowAIInsights(true)}
-                  className="p-2 text-dark-text-muted hover:text-accent-purple transition-colors rounded-lg hover:bg-white/5 relative"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  title={`Tenebris knows you ${(userInsights.confidence * 100).toFixed(0)}% - View insights`}
-                >
-                  <Brain size={20} />
-                  {userInsights.confidence > 0.7 && (
-                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-accent-purple rounded-full animate-pulse"></div>
-                  )}
-                </motion.button>
-              )}
-              <motion.button
-                onClick={() => navigate("/profile")}
-                className="p-2 text-dark-text-muted hover:text-dark-text transition-colors rounded-lg hover:bg-white/5"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                title="Profile"
-              >
-                <User size={20} />
-              </motion.button>
-              <motion.button
-                onClick={() => navigate("/settings")}
-                className="p-2 text-dark-text-muted hover:text-dark-text transition-colors rounded-lg hover:bg-white/5"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                title="Settings"
-              >
-                <Settings size={20} />
-              </motion.button>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-
-      <motion.div
-        className="container-dashboard space-y-8 pt-24"
-        variants={staggerContainer}
-        initial="initial"
-        animate="animate"
-      >
-        {/* Current Activity Section */}
-        <motion.section variants={fadeInUp}>
-          <AnimatePresence mode="wait">
-            {currentActivity ? (
-              <motion.div
-                key="active"
-                className="card text-center space-y-6"
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <div className="flex items-center justify-center space-x-3">
-                  <StatusIndicator
-                    status={currentActivity.isPaused ? "paused" : "active"}
-                    size="lg"
-                    pulse={!currentActivity.isPaused}
-                  />
-                  <h2 className="text-2xl font-display font-semibold">
-                    {currentActivity.name}
-                  </h2>
-                </div>
-
-                {/* Live Timer */}
-                <motion.div
-                  className="text-5xl font-mono font-bold text-accent-blue"
-                  key={getTimeElapsed()}
-                  initial={{ scale: 1.05 }}
-                  animate={{ scale: 1 }}
-                  transition={{ duration: 0.1 }}
-                >
-                  {Math.floor(getTimeElapsed() / 60)}h {getTimeElapsed() % 60}m
-                </motion.div>
-
-                <div className="text-sm text-dark-text-muted">
-                  Started at {formatTime(new Date(currentActivity.startTime))}
-                </div>
-
-                {/* Activity Controls */}
-                <div className="flex justify-center items-center space-x-4">
-                  <MagneticButton
-                    variant="outline"
-                    size="lg"
-                    onClick={handlePauseActivity}
-                    magneticStrength={0.6}
-                  >
-                    {currentActivity.isPaused ? (
-                      <Play size={20} />
-                    ) : (
-                      <Pause size={20} />
-                    )}
-                    <span>{currentActivity.isPaused ? "Resume" : "Pause"}</span>
-                  </MagneticButton>
-
-                  <MagneticButton
-                    variant="primary"
-                    size="lg"
-                    onClick={() => handleStopActivity()}
-                    magneticStrength={0.8}
-                  >
-                    <Square size={20} />
-                    <span>Complete</span>
-                  </MagneticButton>
-                </div>
-              </motion.div>
+        <div className="flex items-center justify-between px-6 py-3">
+          {/* System Identity */}
+          <div className="flex items-center space-x-6">
+            {isRetroTheme ? (
+              /* Retro Start Button Style */
+              <RetroStartButton onClick={() => navigate("/")}>
+                TENEBRIS
+              </RetroStartButton>
             ) : (
               <motion.div
-                key="idle"
-                className="card text-center space-y-6"
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                transition={{ duration: 0.3 }}
+                className="flex items-center space-x-3"
+                whileHover={{ scale: 1.02 }}
               >
-                <div className="space-y-3">
-                  <div className="w-16 h-16 mx-auto rounded-full bg-dark-surface border border-dark-border flex items-center justify-center">
-                    <Clock size={24} className="text-dark-text-muted" />
-                  </div>
-                  <h2 className="text-4xl font-display font-bold text-white tracking-wider">
-                    READY TO FOCUS
-                  </h2>
-                  {scheduledActivity ? (
-                    <div className="space-y-3">
-                      <p className="text-dark-text-muted">
-                        Activity found in schedule,{" "}
-                        <button
-                          onClick={handleStartScheduledActivity}
-                          className="text-accent-green hover:text-accent-green/80 font-medium underline underline-offset-2 transition-colors duration-200"
-                        >
-                          get started
-                        </button>
-                        {" or "}
-                        <button
-                          onClick={handleSkipActivity}
-                          className="text-accent-red hover:text-accent-red/80 font-medium underline underline-offset-2 transition-colors duration-200"
-                        >
-                          skip
-                        </button>
-                      </p>
-                      <div className="text-center">
-                        <p className="text-lg font-medium text-white">
-                          {scheduledActivity.activity}
-                        </p>
-                        <p className="text-sm text-dark-text-muted">
-                          Scheduled for {scheduledActivity.startTime} -{" "}
-                          {scheduledActivity.endTime}
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-dark-text-muted">
-                      Choose an activity or{" "}
-                      <button
-                        onClick={() => navigate("/schedule")}
-                        className="text-accent-blue hover:text-accent-blue/80 font-medium underline underline-offset-2 transition-colors duration-200"
-                      >
-                        generate a schedule
-                      </button>
-                    </p>
-                  )}
+                <div className="w-8 h-8 bg-gradient-to-br from-accent-blue to-accent-purple rounded-lg flex items-center justify-center">
+                  <span className="text-sm font-bold">T</span>
+                </div>
+                <div>
+                  <h1 className="font-display font-bold text-lg leading-none">
+                    TENEBRIS
+                  </h1>
+                  <p className="text-xs text-dark-text-muted leading-none">
+                    Personal OS
+                  </p>
                 </div>
               </motion.div>
             )}
-          </AnimatePresence>
-        </motion.section>
 
-        {/* Next Up */}
-        {!currentActivity && nextActivity && (
-          <motion.section variants={fadeInUp} className="card">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-display flex items-center space-x-2">
-                <Calendar size={20} className="text-accent-blue" />
-                <span>Next Up</span>
-              </h3>
-            </div>
-            <div className="text-xl font-semibold text-dark-text mb-2">
-              {nextActivity.activity}
-            </div>
-            <div className="text-sm text-dark-text-muted">
-              Scheduled for {nextActivity.startTime}
-            </div>
-          </motion.section>
-        )}
-
-        {/* Quick Actions */}
-        {!currentActivity && (
-          <motion.section variants={fadeInUp} className="space-y-8">
-            <div className="relative flex items-center justify-center">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full h-px bg-gradient-to-r from-transparent via-accent-blue to-transparent opacity-50"></div>
+            {/* Current Time & Date */}
+            <div className="hidden md:block text-sm">
+              <div className="font-mono font-medium">
+                {formatTime(currentTime)}
               </div>
-              <div className="relative bg-dark-bg px-8">
-                <span className="text-xl font-display text-white tracking-wider">
-                  Quick Start
+              <div className="text-xs text-dark-text-muted">
+                {currentTime.toLocaleDateString("en-US", {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* System Status */}
+          <div className="flex items-center space-x-4">
+            {/* AI Status */}
+            {userInsights && userInsights.confidence > 0.3 && (
+              <motion.button
+                onClick={() => setShowAIInsights(true)}
+                className="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-accent-purple/10 border border-accent-purple/20 hover:bg-accent-purple/20 transition-colors"
+                whileHover={{ scale: 1.05 }}
+              >
+                <Brain size={14} />
+                <span className="text-xs font-medium">
+                  {(userInsights.confidence * 100).toFixed(0)}%
+                </span>
+              </motion.button>
+            )}
+
+            {/* System Stats */}
+            <div className="hidden lg:flex items-center space-x-3 text-xs">
+              <div className="flex items-center space-x-1">
+                <Wifi
+                  size={14}
+                  className={
+                    systemStats.wifi ? "text-accent-green" : "text-accent-red"
+                  }
+                />
+                <span className="text-dark-text-muted">Online</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <Battery size={14} className="text-accent-blue" />
+                <span className="text-dark-text-muted">
+                  {systemStats.battery}%
+                </span>
+              </div>
+              <div className="flex items-center space-x-1">
+                {systemStats.weather.condition === "sunny" ? (
+                  <Sun size={14} className="text-accent-orange" />
+                ) : (
+                  <Cloud size={14} className="text-dark-text-muted" />
+                )}
+                <span className="text-dark-text-muted">
+                  {systemStats.weather.temp}°
                 </span>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-              {quickActions.map((action, index) => (
-                <motion.div
-                  key={action.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="w-full"
-                >
-                  <MagneticButton
-                    variant="ghost"
-                    onClick={() => handleStartActivity(action)}
-                    className="w-full h-40 p-8 bg-dark-surface/30 border border-white/10 rounded-2xl hover:border-accent-blue/30 transition-all duration-300 flex flex-col justify-between items-start text-left"
-                    magneticStrength={0.3}
+            {/* User Controls */}
+            <div className="flex items-center space-x-2">
+              {isRetroTheme ? (
+                <>
+                  <RetroButton
+                    size="sm"
+                    onClick={() => navigate("/profile")}
+                    icon={User}
                   >
-                    <div className="flex items-center space-x-4">
-                      <div className="text-4xl">
+                    Profile
+                  </RetroButton>
+                  <RetroButton
+                    size="sm"
+                    onClick={() => navigate("/settings")}
+                    icon={Settings}
+                  >
+                    Settings
+                  </RetroButton>
+                </>
+              ) : (
+                <>
+                  <motion.button
+                    onClick={() => navigate("/profile")}
+                    className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+                    whileHover={{ scale: 1.05 }}
+                  >
+                    <User size={16} />
+                  </motion.button>
+                  <motion.button
+                    onClick={() => navigate("/settings")}
+                    className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+                    whileHover={{ scale: 1.05 }}
+                  >
+                    <Settings size={16} />
+                  </motion.button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </motion.header>
+
+      {/* Main Dashboard Layout */}
+      <motion.main
+        className="pt-20 p-6 grid grid-cols-12 gap-6 min-h-screen"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        {/* Left Panel - Quick Actions & Controls */}
+        <motion.aside
+          className="col-span-12 lg:col-span-3 space-y-6"
+          variants={panelVariants}
+        >
+          {/* Quick Command Panel */}
+          {isRetroTheme ? (
+            <RetroWindow
+              title="Quick Actions"
+              width="100%"
+              height="auto"
+              x={0}
+              y={0}
+              resizable={false}
+              minimizable={false}
+              maximizable={false}
+              closeable={false}
+              icon="⚡"
+              className="relative"
+            >
+              <div className="space-y-2">
+                {quickActions.slice(0, 4).map((action, index) => (
+                  <RetroButton
+                    key={action.id}
+                    onClick={() => handleStartActivity(action)}
+                    variant="default"
+                    size="md"
+                    icon={typeof action.icon === "string" ? null : action.icon}
+                    className="w-full justify-start"
+                  >
+                    {typeof action.icon === "string" && (
+                      <span className="text-sm mr-2">{action.icon}</span>
+                    )}
+                    {action.label} ({action.duration}m)
+                  </RetroButton>
+                ))}
+              </div>
+            </RetroWindow>
+          ) : (
+            <div className="glass rounded-2xl p-6 border border-white/10">
+              <h3 className="font-display font-semibold mb-4 flex items-center space-x-2">
+                <Command size={16} />
+                <span>Quick Actions</span>
+              </h3>
+              <div className="space-y-3">
+                {quickActions.slice(0, 4).map((action, index) => (
+                  <motion.button
+                    key={action.id}
+                    onClick={() => handleStartActivity(action)}
+                    className="w-full p-3 rounded-xl bg-dark-surface/30 border border-white/10 hover:border-white/20 hover:bg-dark-surface/50 transition-all text-left group"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div
+                        className={`w-8 h-8 rounded-lg bg-${action.color}/20 flex items-center justify-center`}
+                      >
                         {typeof action.icon === "string" ? (
-                          <span>{action.icon}</span>
+                          <span className="text-sm">{action.icon}</span>
                         ) : (
                           <action.icon
-                            size={32}
+                            size={16}
                             className={`text-${action.color}`}
                           />
                         )}
                       </div>
-                      <div className="text-xl font-medium text-white">
-                        {action.label}
-                      </div>
-                    </div>
-                    <div className="text-lg text-dark-text-muted font-medium">
-                      {action.id === "run" || action.id === "learn"
-                        ? `${settings?.activity?.defaultDuration || action.duration} min`
-                        : `${action.duration} min`}
-                    </div>
-                  </MagneticButton>
-                </motion.div>
-              ))}
-            </div>
-          </motion.section>
-        )}
-
-        {/* Today's Progress */}
-        {getTodayActivities().length > 0 ? (
-          <motion.section variants={fadeInUp} className="card relative">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-display flex items-center space-x-2">
-                <div className="w-6 h-6 rounded-full bg-accent-green flex items-center justify-center">
-                  <Target size={12} className="text-white" />
-                </div>
-                <span>Today's Progress</span>
-              </h3>
-              <motion.button
-                onClick={() => setShowManualEntry(true)}
-                className="w-8 h-8 bg-gradient-to-r from-accent-blue to-accent-purple rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                title="Log Activity Manually"
-              >
-                <Plus
-                  size={16}
-                  className="text-white group-hover:rotate-90 transition-transform duration-300"
-                />
-              </motion.button>
-            </div>
-
-            <div className="space-y-4">
-              {Object.entries(groupActivitiesByTime()).map(
-                ([timeOfDay, timeActivities]) => {
-                  if (timeActivities.length === 0) return null;
-
-                  const isCollapsed = collapsedSections[timeOfDay];
-                  const timeLabels = {
-                    morning: "Morning",
-                    afternoon: "Afternoon",
-                    evening: "Evening",
-                  };
-
-                  return (
-                    <div key={timeOfDay} className="space-y-3">
-                      <button
-                        onClick={() => toggleSection(timeOfDay)}
-                        className="flex items-center justify-between w-full text-left group"
-                      >
-                        <h4 className="text-sm font-medium text-dark-text-muted uppercase tracking-wide">
-                          {timeLabels[timeOfDay]}
-                        </h4>
-                        <motion.div
-                          animate={{ rotate: isCollapsed ? 0 : 180 }}
-                          transition={{ duration: 0.2 }}
-                          className="text-dark-text-muted group-hover:text-dark-text"
-                        >
-                          <ChevronDown size={16} />
-                        </motion.div>
-                      </button>
-
-                      <AnimatePresence>
-                        {!isCollapsed && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.3 }}
-                            className="space-y-2"
-                          >
-                            {timeActivities.map((activity, index) => (
-                              <motion.div
-                                key={`${activity.name}-${activity.startTime}`}
-                                className="flex items-center justify-between p-3 bg-dark-surface/20 rounded-lg hover:bg-dark-surface/30 transition-all"
-                                initial={{ opacity: 0, x: -10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: index * 0.05 }}
-                              >
-                                <div className="flex items-center space-x-3 flex-1">
-                                  <div
-                                    className={`w-2 h-2 rounded-full ${activity.color}`}
-                                  />
-                                  <div className="flex-1">
-                                    <div className="flex items-center space-x-2">
-                                      <span className="font-medium text-dark-text">
-                                        {activity.name}
-                                      </span>
-                                      {activity.count > 1 && (
-                                        <span className="px-1.5 py-0.5 bg-dark-text-muted/20 text-dark-text-muted text-xs rounded-full">
-                                          ×{activity.count}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="w-full bg-dark-border rounded-full h-1 mt-2">
-                                      <div
-                                        className={`h-1 rounded-full ${activity.color} opacity-60`}
-                                        style={{
-                                          width: `${Math.min((activity.totalDuration / 60) * 100, 100)}%`,
-                                        }}
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="text-sm text-dark-text-muted font-mono">
-                                  {formatDurationDisplay(
-                                    activity.totalDuration,
-                                  )}
-                                </div>
-                              </motion.div>
-                            ))}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  );
-                },
-              )}
-            </div>
-          </motion.section>
-        ) : (
-          <motion.section
-            variants={fadeInUp}
-            className="card text-center py-8 relative"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-display flex items-center space-x-2">
-                <div className="w-6 h-6 rounded-full bg-accent-green flex items-center justify-center">
-                  <Target size={12} className="text-white" />
-                </div>
-                <span>Today's Progress</span>
-              </h3>
-              <motion.button
-                onClick={() => setShowManualEntry(true)}
-                className="w-8 h-8 bg-gradient-to-r from-accent-blue to-accent-purple rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                title="Log Activity Manually"
-              >
-                <Plus
-                  size={16}
-                  className="text-white group-hover:rotate-90 transition-transform duration-300"
-                />
-              </motion.button>
-            </div>
-            <motion.div
-              animate={{
-                scale: [1, 1.05, 1],
-                opacity: [0.5, 1, 0.5],
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-              className="w-16 h-16 mx-auto mb-4 rounded-full bg-accent-blue/10 flex items-center justify-center"
-            >
-              <Target size={24} className="text-accent-blue" />
-            </motion.div>
-            <h3 className="text-lg font-display text-dark-text mb-2">
-              Ready to Begin
-            </h3>
-            <p className="text-dark-text-muted">
-              Start strong—your journey begins with the first step
-            </p>
-          </motion.section>
-        )}
-      </motion.div>
-
-      {/* Activity Prompt Modal */}
-      <AnimatePresence>
-        {showActivityPrompt && scheduledActivity && (
-          <motion.div
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              className="glass rounded-2xl p-6 w-full max-w-md text-center"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-            >
-              <div className="text-4xl mb-4">⏰</div>
-              <h3 className="text-xl font-display mb-2">
-                Time for your activity!
-              </h3>
-              <p className="text-dark-text-secondary mb-2">
-                {scheduledActivity.activity}
-              </p>
-              <p className="text-sm text-dark-text-muted mb-6">
-                Scheduled for {scheduledActivity.startTime} -{" "}
-                {scheduledActivity.endTime}
-              </p>
-
-              <div className="space-y-3">
-                <MagneticButton
-                  variant="primary"
-                  onClick={handleStartScheduledActivity}
-                  className="w-full"
-                >
-                  <Play size={16} />
-                  <span>Start Activity</span>
-                </MagneticButton>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <MagneticButton
-                    variant="ghost"
-                    onClick={handleSkipActivity}
-                    className="w-full"
-                  >
-                    Skip
-                  </MagneticButton>
-
-                  <MagneticButton
-                    variant="outline"
-                    onClick={handleDoingSomethingElse}
-                    disabled={isLoadingAlternatives}
-                    className="w-full"
-                  >
-                    {isLoadingAlternatives ? "Loading..." : "Something Else"}
-                  </MagneticButton>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Alternative Activities Modal */}
-      <AnimatePresence>
-        {showAlternatives && (
-          <motion.div
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              className="glass rounded-2xl p-6 w-full max-w-md"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-            >
-              <h3 className="text-xl font-display mb-4">
-                What would you like to do instead?
-              </h3>
-
-              <div className="space-y-3 mb-6">
-                {alternativeActivities.map((alternative, index) => (
-                  <motion.button
-                    key={`${alternative.activity}-${index}`}
-                    onClick={() => handleSelectAlternative(alternative)}
-                    className="w-full p-4 bg-dark-surface/50 rounded-lg text-left hover:bg-dark-surface transition-colors hover:border-accent-blue/30 border border-transparent"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="font-medium text-dark-text">
-                          {alternative.activity}
+                      <div>
+                        <div className="font-medium text-sm">
+                          {action.label}
                         </div>
-                        <div className="text-sm text-dark-text-muted mt-1">
-                          {alternative.duration}min • {alternative.reason}
+                        <div className="text-xs text-dark-text-muted">
+                          {action.duration}m
                         </div>
-                      </div>
-                      <div className="ml-3">
-                        <Play size={16} className="text-accent-blue" />
                       </div>
                     </div>
                   </motion.button>
                 ))}
               </div>
+            </div>
+          )}
 
-              <MagneticButton
-                variant="ghost"
-                onClick={() => {
-                  // Record that user cancelled - learning signal
-                  if (scheduledActivity) {
-                    intelligentService.recordUserChoice(
-                      scheduledActivity,
-                      "cancelled_alternatives",
-                      {
-                        timeOfDay: new Date().getHours(),
-                        context: aiEngine.inferCurrentContext(),
-                      },
-                    );
-                  }
-                  setShowAlternatives(false);
-                }}
-                className="w-full"
-              >
-                Cancel
-              </MagneticButton>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* AI Insights Panel - Shows when Tenebris has learned enough about you */}
-      <AnimatePresence>
-        {userInsights && userInsights.confidence > 0.3 && showAIInsights && (
-          <motion.div
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              className="glass rounded-2xl p-6 w-full max-w-lg"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+          {/* Live Metrics */}
+          {isRetroTheme ? (
+            <RetroWindow
+              title="Today's Metrics"
+              width="100%"
+              height="auto"
+              x={0}
+              y={0}
+              resizable={false}
+              minimizable={false}
+              maximizable={false}
+              closeable={false}
+              icon="📊"
+              className="relative"
             >
-              <div className="flex items-center space-x-3 mb-4">
-                <Brain className="text-accent-purple" size={24} />
-                <h3 className="text-xl font-display">Tenebris Knows You</h3>
-                <div className="ml-auto text-sm text-dark-text-muted">
-                  {(userInsights.confidence * 100).toFixed(0)}% confidence
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-2 bg-gray-100 border border-gray-300">
+                  <span className="text-sm text-black">Sessions</span>
+                  <span className="font-bold text-blue-600">
+                    {stats.sessions}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-2 bg-gray-100 border border-gray-300">
+                  <span className="text-sm text-black">Focus Time</span>
+                  <span className="font-bold text-blue-600">
+                    {Math.floor(stats.focusTime / 60)}h {stats.focusTime % 60}m
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-2 bg-gray-100 border border-gray-300">
+                  <span className="text-sm text-black">Total Time</span>
+                  <span className="font-bold text-blue-600">
+                    {Math.floor(stats.totalTime / 60)}h {stats.totalTime % 60}m
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-2 bg-gray-100 border border-gray-300">
+                  <span className="text-sm text-black">Avg Session</span>
+                  <span className="font-bold text-blue-600">
+                    {Math.floor(stats.avgSession)}m
+                  </span>
                 </div>
               </div>
-
+            </RetroWindow>
+          ) : (
+            <div className="glass rounded-2xl p-6 border border-white/10">
+              <h3 className="font-display font-semibold mb-4 flex items-center space-x-2">
+                <TrendingUp size={16} />
+                <span>Today's Metrics</span>
+              </h3>
               <div className="space-y-4">
-                {userInsights.insights.slice(0, 3).map((insight, index) => (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-dark-text-muted">Sessions</span>
+                  <span className="font-bold text-accent-green">
+                    {stats.sessions}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-dark-text-muted">
+                    Focus Time
+                  </span>
+                  <span className="font-bold text-accent-blue">
+                    {Math.floor(stats.focusTime / 60)}h {stats.focusTime % 60}m
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-dark-text-muted">
+                    Total Time
+                  </span>
+                  <span className="font-bold text-accent-purple">
+                    {Math.floor(stats.totalTime / 60)}h {stats.totalTime % 60}m
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-dark-text-muted">
+                    Avg Session
+                  </span>
+                  <span className="font-bold text-accent-orange">
+                    {Math.floor(stats.avgSession)}m
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* AI Suggested Actions */}
+          {!currentActivity && suggestedActions.length > 0 && (
+            <motion.div
+              className="space-y-4"
+              variants={panelVariants}
+              initial="hidden"
+              animate="visible"
+            >
+              {isRetroTheme ? (
+                <RetroWindow
+                  title="Suggested Actions"
+                  width="100%"
+                  height="auto"
+                  x={0}
+                  y={0}
+                  resizable={false}
+                  minimizable={false}
+                  maximizable={false}
+                  closeable={false}
+                  icon="💡"
+                  className="relative"
+                >
+                  <div className="space-y-2">
+                    <div className="text-xs text-gray-600 mb-3">
+                      AI recommendations based on your patterns and current
+                      context
+                    </div>
+                    {loadingSuggestions ? (
+                      <div className="flex items-center justify-center py-4">
+                        <div className="text-xs">
+                          Analyzing your patterns...
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {suggestedActions
+                          .slice(0, 3)
+                          .map((suggestion, index) => (
+                            <RetroButton
+                              key={suggestion.id}
+                              onClick={() =>
+                                handleStartActivity({
+                                  label: suggestion.label,
+                                  id: suggestion.category,
+                                  duration: suggestion.duration,
+                                })
+                              }
+                              variant="default"
+                              size="sm"
+                              className="w-full justify-start text-left"
+                            >
+                              <div className="flex items-center space-x-2">
+                                {typeof suggestion.icon === "string" ? (
+                                  <span className="text-xs">
+                                    {suggestion.icon}
+                                  </span>
+                                ) : (
+                                  <suggestion.icon size={12} />
+                                )}
+                                <div>
+                                  <div className="font-medium text-xs">
+                                    {suggestion.label}
+                                  </div>
+                                  <div className="text-xs opacity-75">
+                                    {suggestion.duration}m
+                                  </div>
+                                </div>
+                              </div>
+                            </RetroButton>
+                          ))}
+                        <RetroButton
+                          variant="default"
+                          size="sm"
+                          onClick={generateSuggestedActions}
+                          className="w-full"
+                        >
+                          🔄 Refresh Suggestions
+                        </RetroButton>
+                      </div>
+                    )}
+                  </div>
+                </RetroWindow>
+              ) : (
+                <div className="glass rounded-2xl p-6 border border-white/10">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-display font-semibold flex items-center space-x-2">
+                      <Lightbulb size={16} className="text-accent-orange" />
+                      <span>Suggested Actions</span>
+                    </h3>
+                    <motion.button
+                      onClick={generateSuggestedActions}
+                      disabled={loadingSuggestions}
+                      className="p-2 rounded-lg hover:bg-white/5 transition-colors text-dark-text-muted hover:text-dark-text disabled:opacity-50"
+                      whileHover={{ scale: 1.05 }}
+                      title="Refresh suggestions"
+                    >
+                      <motion.div
+                        animate={loadingSuggestions ? { rotate: 360 } : {}}
+                        transition={{
+                          duration: 1,
+                          repeat: loadingSuggestions ? Infinity : 0,
+                        }}
+                      >
+                        🔄
+                      </motion.div>
+                    </motion.button>
+                  </div>
+
+                  {loadingSuggestions ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="text-center">
+                        <motion.div
+                          className="w-8 h-8 border-2 border-accent-blue border-t-transparent rounded-full mx-auto mb-3"
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity }}
+                        />
+                        <p className="text-sm text-dark-text-muted">
+                          Analyzing your patterns and generating personalized
+                          suggestions...
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-xs text-dark-text-muted mb-4">
+                        AI recommendations based on your activity patterns,
+                        current time, and energy levels
+                      </p>
+
+                      {suggestedActions.slice(0, 4).map((suggestion, index) => (
+                        <motion.button
+                          key={suggestion.id}
+                          onClick={() =>
+                            handleStartActivity({
+                              label: suggestion.label,
+                              id: suggestion.category,
+                              duration: suggestion.duration,
+                            })
+                          }
+                          className="w-full p-3 rounded-xl bg-dark-surface/20 border border-white/10 hover:border-white/20 hover:bg-dark-surface/30 transition-all text-left group"
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.1 }}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <div
+                              className={`w-8 h-8 rounded-lg bg-${suggestion.color}/20 flex items-center justify-center flex-shrink-0`}
+                            >
+                              {typeof suggestion.icon === "string" ? (
+                                <span className="text-sm">
+                                  {suggestion.icon}
+                                </span>
+                              ) : (
+                                <suggestion.icon
+                                  size={16}
+                                  className={`text-${suggestion.color}`}
+                                />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between">
+                                <h4 className="font-medium text-sm text-white truncate">
+                                  {suggestion.label}
+                                </h4>
+                                <span className="text-xs text-dark-text-muted ml-2 flex-shrink-0">
+                                  {suggestion.duration}m
+                                </span>
+                              </div>
+                              <p className="text-xs text-dark-text-muted mt-1 leading-relaxed">
+                                {suggestion.description}
+                              </p>
+                              {suggestion.reasoning && (
+                                <p className="text-xs text-accent-blue/80 mt-1 italic">
+                                  💡 {suggestion.reasoning}
+                                </p>
+                              )}
+                              {suggestion.confidence && (
+                                <div className="flex items-center mt-2">
+                                  <div className="w-full bg-dark-border rounded-full h-1">
+                                    <div
+                                      className={`h-1 rounded-full bg-${suggestion.color}`}
+                                      style={{
+                                        width: `${suggestion.confidence * 100}%`,
+                                      }}
+                                    />
+                                  </div>
+                                  <span className="text-xs text-dark-text-muted ml-2">
+                                    {Math.round(suggestion.confidence * 100)}%
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </motion.button>
+                      ))}
+
+                      {suggestedActions.length > 4 && (
+                        <div className="text-center pt-2">
+                          <button className="text-xs text-accent-blue hover:text-accent-blue/80 font-medium">
+                            View {suggestedActions.length - 4} more suggestions
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          )}
+        </motion.aside>
+
+        {/* Center Panel - Focus Command Center */}
+        <motion.section
+          className="col-span-12 lg:col-span-6 space-y-6"
+          variants={panelVariants}
+        >
+          {/* Main Focus Panel */}
+          <div className="glass rounded-2xl border border-white/10 overflow-hidden">
+            <AnimatePresence mode="wait">
+              {currentActivity ? (
+                <motion.div
+                  key="active"
+                  className="p-8 text-center"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                >
+                  {/* Session Header */}
+                  <div className="flex items-center justify-center space-x-3 mb-6">
+                    <StatusIndicator
+                      status={currentActivity.isPaused ? "paused" : "active"}
+                      size="lg"
+                      pulse={!currentActivity.isPaused}
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-accent-blue uppercase tracking-wider">
+                        {currentActivity.isPaused ? "PAUSED" : "ACTIVE SESSION"}
+                      </p>
+                      <h2 className="text-2xl font-display font-bold">
+                        {currentActivity.name}
+                      </h2>
+                    </div>
+                  </div>
+
+                  {/* Live Timer */}
+                  <motion.div
+                    className="mb-8"
+                    key={getTimeElapsed()}
+                    initial={{ scale: 1.02 }}
+                    animate={{ scale: 1 }}
+                    transition={{ duration: 0.1 }}
+                  >
+                    <div className="text-6xl font-mono font-bold bg-gradient-to-r from-accent-blue to-accent-purple bg-clip-text text-transparent">
+                      {Math.floor(getTimeElapsed() / 60)}h{" "}
+                      {getTimeElapsed() % 60}m
+                    </div>
+                    <p className="text-dark-text-muted mt-2">
+                      Started at{" "}
+                      {formatTime(new Date(currentActivity.startTime))}
+                    </p>
+                  </motion.div>
+
+                  {/* Session Controls */}
+                  <div className="flex justify-center space-x-4">
+                    {isRetroTheme ? (
+                      <>
+                        <RetroButton
+                          variant="default"
+                          size="lg"
+                          onClick={handlePauseActivity}
+                          icon={currentActivity.isPaused ? Play : Pause}
+                        >
+                          {currentActivity.isPaused ? "Resume" : "Pause"}
+                        </RetroButton>
+                        <RetroButton
+                          variant="success"
+                          size="lg"
+                          onClick={handleStopActivity}
+                          icon={Square}
+                        >
+                          Complete
+                        </RetroButton>
+                      </>
+                    ) : (
+                      <>
+                        <MagneticButton
+                          variant="outline"
+                          size="lg"
+                          onClick={handlePauseActivity}
+                          className="flex items-center space-x-2"
+                        >
+                          {currentActivity.isPaused ? (
+                            <Play size={20} />
+                          ) : (
+                            <Pause size={20} />
+                          )}
+                          <span>
+                            {currentActivity.isPaused ? "Resume" : "Pause"}
+                          </span>
+                        </MagneticButton>
+                        <MagneticButton
+                          variant="primary"
+                          size="lg"
+                          onClick={handleStopActivity}
+                          className="flex items-center space-x-2 bg-gradient-to-r from-accent-green to-accent-blue"
+                        >
+                          <Square size={20} />
+                          <span>Complete</span>
+                        </MagneticButton>
+                      </>
+                    )}
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="ready"
+                  className="p-8 text-center"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                >
+                  <div className="mb-6">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r from-accent-blue/20 to-accent-purple/20 border border-white/20 flex items-center justify-center">
+                      <Clock size={24} />
+                    </div>
+                    <h2 className="text-3xl font-display font-bold mb-2">
+                      Ready for Focus
+                    </h2>
+                    <p className="text-dark-text-muted">
+                      Your mind is clear. What would you like to accomplish?
+                    </p>
+                  </div>
+
+                  <div className="flex justify-center">
+                    {isRetroTheme ? (
+                      <RetroButton
+                        variant="primary"
+                        size="lg"
+                        onClick={() => navigate("/schedule")}
+                        icon={Zap}
+                      >
+                        Start Session
+                      </RetroButton>
+                    ) : (
+                      <MagneticButton
+                        variant="primary"
+                        size="lg"
+                        onClick={() => navigate("/schedule")}
+                        className="flex items-center space-x-2 bg-gradient-to-r from-accent-blue to-accent-purple"
+                      >
+                        <Zap size={20} />
+                        <span>Start Session</span>
+                      </MagneticButton>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Activity Stream */}
+          <div className="glass rounded-2xl p-6 border border-white/10">
+            <h3 className="font-display font-semibold mb-4 flex items-center space-x-2">
+              <Activity size={16} />
+              <span>Recent Activity</span>
+            </h3>
+            <div className="space-y-3">
+              {getTodayActivities()
+                .slice(0, 4)
+                .map((activity, index) => (
+                  <motion.div
+                    key={activity.id}
+                    className="flex items-center space-x-3 p-3 rounded-lg bg-dark-surface/20"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    <div className="w-2 h-2 rounded-full bg-accent-blue" />
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{activity.name}</span>
+                        <span className="text-sm text-dark-text-muted">
+                          {activity.duration}m
+                        </span>
+                      </div>
+                      <p className="text-xs text-dark-text-muted">
+                        {formatTime(new Date(activity.startTime))}
+                      </p>
+                    </div>
+                  </motion.div>
+                ))}
+            </div>
+          </div>
+        </motion.section>
+
+        {/* Right Panel - Intelligence & Widgets */}
+        <motion.aside
+          className="col-span-12 lg:col-span-3 space-y-6"
+          variants={panelVariants}
+        >
+          {/* AI Intelligence Hub */}
+          {userInsights && userInsights.confidence > 0.3 && (
+            <div className="glass rounded-2xl p-6 border border-white/10">
+              <h3 className="font-display font-semibold mb-4 flex items-center space-x-2">
+                <Brain size={16} />
+                <span>Tenebris Intelligence</span>
+                <div className="ml-auto text-xs bg-accent-purple/20 text-accent-purple px-2 py-1 rounded-full">
+                  {(userInsights.confidence * 100).toFixed(0)}%
+                </div>
+              </h3>
+              <div className="space-y-3">
+                {userInsights.insights.slice(0, 2).map((insight, index) => (
                   <div
                     key={index}
-                    className="p-3 bg-dark-surface/30 rounded-lg"
+                    className="p-3 bg-dark-surface/20 rounded-lg"
                   >
                     <div className="flex items-center space-x-2 mb-1">
-                      <Lightbulb size={16} className="text-accent-blue" />
+                      <Lightbulb size={14} className="text-accent-blue" />
                       <span className="font-medium text-sm">
                         {insight.title}
                       </span>
                     </div>
-                    <p className="text-sm text-dark-text-muted">
+                    <p className="text-xs text-dark-text-muted">
                       {insight.message}
                     </p>
                   </div>
                 ))}
               </div>
+            </div>
+          )}
 
-              <div className="flex space-x-3 mt-6">
-                <MagneticButton
-                  variant="primary"
-                  onClick={() => setShowAIInsights(false)}
-                  className="flex-1"
-                >
-                  <span>Got it</span>
-                </MagneticButton>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Widget System */}
-      <motion.div variants={fadeInUp} className="mt-12">
-        <WidgetSystem />
-      </motion.div>
-
-      {/* Manual Entry Modal */}
-      <AnimatePresence>
-        {showManualEntry && (
-          <motion.div
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setShowManualEntry(false)}
-          >
-            <motion.div
-              className="glass rounded-2xl p-6 w-full max-w-md"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="text-xl font-display mb-6 text-white">
-                Log Activity Manually
+          {/* System Widgets */}
+          <div className="glass rounded-2xl p-6 border border-white/10">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display font-semibold flex items-center space-x-2">
+                <Star size={16} />
+                <span>Quick Info</span>
               </h3>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-dark-text-muted mb-2">
-                    Activity Name
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Running, Reading, Coding..."
-                    value={manualEntry.name}
-                    onChange={(e) =>
-                      setManualEntry((prev) => ({
-                        ...prev,
-                        name: e.target.value,
-                      }))
-                    }
-                    className="w-full px-4 py-3 bg-dark-surface border border-dark-border rounded-lg text-dark-text placeholder:text-dark-text-muted focus:outline-none focus:border-accent-blue/50"
-                    autoFocus
-                  />
+              <motion.button
+                onClick={() => setShowWidgetDashboard(!showWidgetDashboard)}
+                className="p-2 rounded-lg hover:bg-white/5 transition-colors text-dark-text-muted hover:text-accent-blue"
+                whileHover={{ scale: 1.05 }}
+                title={showWidgetDashboard ? "Hide widgets" : "Show widgets"}
+              >
+                {showWidgetDashboard ? (
+                  <ChevronUp size={16} />
+                ) : (
+                  <ChevronDown size={16} />
+                )}
+              </motion.button>
+            </div>
+            <div className="space-y-4">
+              <div className="p-3 bg-dark-surface/20 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">Week Progress</span>
+                  <span className="text-xs text-accent-green">67%</span>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-dark-text-muted mb-2">
-                    Duration (minutes)
-                  </label>
-                  <input
-                    type="number"
-                    placeholder="30"
-                    value={manualEntry.duration}
-                    onChange={(e) =>
-                      setManualEntry((prev) => ({
-                        ...prev,
-                        duration: e.target.value,
-                      }))
-                    }
-                    className="w-full px-4 py-3 bg-dark-surface border border-dark-border rounded-lg text-dark-text placeholder:text-dark-text-muted focus:outline-none focus:border-accent-blue/50"
-                    min="1"
-                    max="480"
-                  />
+                <div className="w-full bg-dark-border rounded-full h-2">
+                  <div className="w-2/3 h-2 bg-accent-green rounded-full" />
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-dark-text-muted mb-2">
-                    Category
-                  </label>
-                  <select
-                    value={manualEntry.category}
-                    onChange={(e) =>
-                      setManualEntry((prev) => ({
-                        ...prev,
-                        category: e.target.value,
-                      }))
-                    }
-                    className="w-full px-4 py-3 bg-dark-surface border border-dark-border rounded-lg text-dark-text focus:outline-none focus:border-accent-blue/50"
+              <div className="p-3 bg-dark-surface/20 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Focus Streak</span>
+                  <span className="text-accent-orange font-bold">5 days</span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-dark-surface/20 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Next Session</span>
+                  <span className="text-accent-blue text-sm">Learning</span>
+                </div>
+              </div>
+
+              <motion.button
+                onClick={() => setShowWidgetDashboard(!showWidgetDashboard)}
+                className={`w-full mt-3 p-3 rounded-lg transition-all text-left border ${
+                  showWidgetDashboard
+                    ? "bg-accent-purple/10 border-accent-purple/30 hover:bg-accent-purple/20"
+                    : "bg-dark-surface/20 border-transparent hover:bg-dark-surface/30"
+                }`}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-medium">
+                      Widget Dashboard
+                    </span>
+                    <div className="text-xs text-dark-text-muted mt-1">
+                      {visibleWidgetCount} active widgets
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span
+                      className={`text-xs font-medium ${
+                        showWidgetDashboard
+                          ? "text-accent-purple"
+                          : "text-dark-text-muted"
+                      }`}
+                    >
+                      {showWidgetDashboard ? "Hide" : "Show"}
+                    </span>
+                    {showWidgetDashboard ? (
+                      <ChevronUp size={14} />
+                    ) : (
+                      <ChevronDown size={14} />
+                    )}
+                  </div>
+                </div>
+              </motion.button>
+            </div>
+          </div>
+        </motion.aside>
+      </motion.main>
+
+      {/* Personal Dashboard Widgets */}
+      <AnimatePresence>
+        {showWidgetDashboard && (
+          <motion.section
+            className="px-6 pb-6"
+            variants={panelVariants}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="max-w-7xl mx-auto">
+              <div className="mb-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-display font-semibold text-white mb-2">
+                      Personal Workspace
+                    </h2>
+                    <p className="text-dark-text-muted">
+                      {visibleWidgetCount} active widgets • Customize your
+                      productivity tools
+                    </p>
+                  </div>
+                  <motion.button
+                    onClick={() => setShowWidgetDashboard(false)}
+                    className="p-2 rounded-lg hover:bg-white/5 transition-colors text-dark-text-muted hover:text-dark-text"
+                    whileHover={{ scale: 1.05 }}
+                    title="Hide widget dashboard"
                   >
-                    <option value="fitness">Fitness</option>
-                    <option value="learning">Learning</option>
-                    <option value="work">Work</option>
-                    <option value="personal">Personal</option>
-                    <option value="rest">Rest</option>
-                  </select>
+                    <ChevronUp size={20} />
+                  </motion.button>
                 </div>
               </div>
 
-              <div className="flex space-x-3 mt-6">
-                <button
-                  onClick={() => setShowManualEntry(false)}
-                  className="flex-1 px-4 py-3 bg-dark-surface border border-dark-border rounded-lg text-dark-text hover:bg-dark-border transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleManualEntry}
-                  disabled={!manualEntry.name || !manualEntry.duration}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-accent-blue to-accent-purple rounded-lg text-white font-medium hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Log Activity
-                </button>
+              <div className="glass rounded-2xl p-6 border border-white/10">
+                <WidgetSystem />
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </motion.section>
         )}
       </AnimatePresence>
+
+      {/* Custom Styles for Dashboard */}
+      <style jsx>{`
+        body {
+          cursor:
+            url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTAiIGN5PSIxMCIgcj0iMyIgZmlsbD0iIzNiODJmNiIgZmlsbC1vcGFjaXR5PSIwLjgiLz4KPGNpcmNsZSBjeD0iMTAiIGN5PSIxMCIgcj0iNSIgc3Ryb2tlPSIjM2I4MmY2IiBzdHJva2Utb3BhY2l0eT0iMC40IiBzdHJva2Utd2lkdGg9IjEiLz4KPC9zdmc+"),
+            auto;
+        }
+
+        .glass {
+          background: rgba(17, 17, 17, 0.8);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+        }
+      `}</style>
     </div>
   );
 };
