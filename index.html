@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+        />
+        <meta
+            name="description"
+            content="Tenebris OS - A sophisticated personal productivity operating system"
+        />
+
+        <!-- Mobile Web App Meta Tags -->
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta
+            name="apple-mobile-web-app-status-bar-style"
+            content="black-translucent"
+        />
+        <meta name="apple-mobile-web-app-title" content="Tenebris OS" />
+        <meta name="mobile-web-app-capable" content="yes" />
+
+        <!-- Theme Colors -->
+        <meta name="theme-color" content="#0a0a0a" />
+        <meta name="msapplication-navbutton-color" content="#0a0a0a" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="#0a0a0a" />
+
+        <!-- Prevent zoom on input focus (iOS) -->
+        <meta name="format-detection" content="telephone=no" />
+        <meta name="format-detection" content="date=no" />
+        <meta name="format-detection" content="address=no" />
+        <meta name="format-detection" content="email=no" />
+
+        <!-- PWA Meta Tags -->
+        <meta name="application-name" content="Tenebris OS" />
+        <meta name="author" content="Tenebris OS Team" />
+        <meta
+            name="keywords"
+            content="productivity, time tracking, focus, activities, personal dashboard"
+        />
+
+        <!-- Google Fonts -->
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap"
+            rel="stylesheet"
+        />
+
+        <title>Tenebris OS</title>
+
+        <style>
+            /* Prevent flash of unstyled content */
+            body {
+                background-color: #0a0a0a;
+                color: #ffffff;
+                font-family: "Inter", system-ui, sans-serif;
+                margin: 0;
+                padding: 0;
+                overflow-x: hidden;
+                /* Mobile optimizations */
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
+                /* Prevent iOS bounce */
+                overscroll-behavior: none;
+                /* Safe area support */
+                padding-top: env(safe-area-inset-top);
+                padding-bottom: env(safe-area-inset-bottom);
+                padding-left: env(safe-area-inset-left);
+                padding-right: env(safe-area-inset-right);
+            }
+
+            /* Loading animation */
+            .loading {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: #0a0a0a;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 9999;
+            }
+
+            .loading-text {
+                font-family: "Space Grotesk", "Inter", sans-serif;
+                font-size: 1.5rem;
+                font-weight: 500;
+                color: #ffffff;
+                opacity: 0.8;
+                animation: pulse 2s infinite;
+            }
+
+            @keyframes pulse {
+                0%,
+                100% {
+                    opacity: 0.4;
+                }
+                50% {
+                    opacity: 1;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div id="root">
+            <div class="loading">
+                <div class="loading-text">TENEBRIS OS</div>
+            </div>
+        </div>
+        <script type="module" src="/src/main.jsx"></script>
+    </body>
+</html>
