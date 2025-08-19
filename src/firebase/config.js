@@ -8,13 +8,13 @@ import { getAnalytics } from "firebase/analytics";
 // Replace these values with your actual Firebase project config
 // You can find these in your Firebase Console > Project Settings > General > Your apps
 const firebaseConfig = {
-  apiKey: "AIzaSyAZ7VUQSRQMRMCbNmCDM5vrPV7YVKrIBt8",
-  authDomain: "tenebrisos.firebaseapp.com",
-  projectId: "tenebrisos",
-  storageBucket: "tenebrisos.firebasestorage.app",
-  messagingSenderId: "458724438703",
-  appId: "1:458724438703:web:d9e27563f45430273c9a5a",
-  measurementId: "G-9PEKRY1YEN",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 // Initialize Firebase app
