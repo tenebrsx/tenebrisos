@@ -1,0 +1,1023 @@
+/* Import custom fonts for retro themes */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =================================================================
+   THEME FOUNDATION & CSS VARIABLES
+   ================================================================= */
+
+:root {
+    /* Default theme variables - will be overridden by theme system */
+    --color-bg: #0a0a0a;
+    --color-surface: #111111;
+    --color-border: #1a1a1a;
+    --color-text: #ffffff;
+    --color-text-secondary: #a1a1aa;
+    --color-text-muted: #71717a;
+
+    --color-accent-blue: #3b82f6;
+    --color-accent-purple: #8b5cf6;
+    --color-accent-green: #10b981;
+    --color-accent-orange: #f59e0b;
+    --color-accent-red: #ef4444;
+
+    --font-display: "Space Grotesk", system-ui, sans-serif;
+    --font-body: "Inter", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", Menlo, monospace;
+
+    --border-radius: 12px;
+    --border-radius-lg: 16px;
+    --border-radius-xl: 20px;
+
+    --transition-duration: 0.2s;
+    --animation-duration: 0.3s;
+}
+
+/* =================================================================
+   BASE THEME STYLES
+   ================================================================= */
+
+body {
+    font-family: var(--font-body);
+    background: var(--color-bg);
+    color: var(--color-text);
+    transition: all var(--transition-duration) ease-in-out;
+    font-weight: var(--font-weight-normal, 400);
+}
+
+/* Typography scaling based on theme */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-family: var(--font-display);
+    font-weight: var(--font-weight-bold, 700);
+    color: var(--color-text);
+}
+
+/* Modern theme typography (default) */
+.modern-theme h1 {
+    font-size: 2.25rem;
+    line-height: 1.2;
+}
+.modern-theme h2 {
+    font-size: 1.875rem;
+    line-height: 1.3;
+}
+.modern-theme h3 {
+    font-size: 1.5rem;
+    line-height: 1.4;
+}
+
+/* Retro theme typography - smaller, more compact */
+.retro-theme h1 {
+    font-size: 1.75rem;
+    line-height: 1.2;
+    font-weight: 700;
+}
+.retro-theme h2 {
+    font-size: 1.5rem;
+    line-height: 1.3;
+    font-weight: 700;
+}
+.retro-theme h3 {
+    font-size: 1.25rem;
+    line-height: 1.4;
+    font-weight: 600;
+}
+
+/* =================================================================
+   SITE-WIDE COMPONENT TRANSFORMATIONS
+   ================================================================= */
+
+/* Glass/Card Components */
+.glass {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: var(--border-radius);
+    transition: all var(--transition-duration) ease-in-out;
+}
+
+/* Retro theme overrides for glass components */
+.retro-theme .glass {
+    background: var(--glass-bg) !important;
+    border: 2px outset var(--glass-border) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border-radius: var(--border-radius) !important;
+    box-shadow: var(--outset-shadow) !important;
+}
+
+/* Card Components */
+.card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-lg);
+    padding: 1.5rem;
+    transition: all var(--transition-duration) ease-in-out;
+}
+
+.retro-theme .card {
+    background: var(--color-surface) !important;
+    border: 2px outset var(--color-border) !important;
+    border-radius: var(--border-radius) !important;
+    padding: 8px !important;
+    box-shadow: var(--outset-shadow) !important;
+}
+
+/* =================================================================
+   BUTTON TRANSFORMATIONS
+   ================================================================= */
+
+/* Base button styles */
+button,
+.btn {
+    font-family: var(--font-body);
+    font-weight: var(--font-weight-medium, 500);
+    border-radius: var(--border-radius);
+    transition: all var(--transition-duration) ease-in-out;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+/* Modern button styles */
+.modern-theme button,
+.modern-theme .btn {
+    border-radius: var(--border-radius);
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+}
+
+/* Retro button transformations */
+.retro-theme button,
+.retro-theme .btn {
+    background: var(--button-bg) !important;
+    border: 2px outset var(--button-border) !important;
+    border-radius: var(--border-radius) !important;
+    color: var(--color-text) !important;
+    font-family: var(--font-body) !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    padding: 4px 12px !important;
+    text-shadow: none !important;
+    box-shadow: var(--button-shadow) !important;
+    min-height: 24px;
+}
+
+.retro-theme button:hover,
+.retro-theme .btn:hover {
+    background: var(--button-hover) !important;
+    border-style: outset !important;
+}
+
+.retro-theme button:active,
+.retro-theme .btn:active {
+    border-style: inset !important;
+    box-shadow: var(--button-pressed) !important;
+    transform: translate(1px, 1px);
+}
+
+.retro-theme button:disabled,
+.retro-theme .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* =================================================================
+   FORM ELEMENT TRANSFORMATIONS
+   ================================================================= */
+
+/* Input fields */
+input,
+textarea,
+select {
+    font-family: var(--font-body);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: var(--border-radius);
+    transition: all var(--transition-duration) ease-in-out;
+}
+
+.retro-theme input,
+.retro-theme textarea,
+.retro-theme select {
+    background: #ffffff !important;
+    border: 2px inset var(--color-border) !important;
+    color: #000000 !important;
+    border-radius: var(--border-radius) !important;
+    font-family: var(--font-body) !important;
+    font-size: 11px !important;
+    box-shadow: var(--inset-shadow) !important;
+}
+
+.retro-theme input:focus,
+.retro-theme textarea:focus,
+.retro-theme select:focus {
+    outline: 2px solid var(--color-accent-blue) !important;
+    outline-offset: 0 !important;
+    border-color: var(--color-accent-blue) !important;
+}
+
+/* Dark retro theme input adjustments */
+.theme-retro-dark input,
+.theme-retro-dark textarea,
+.theme-retro-dark select {
+    background: var(--color-surface) !important;
+    color: var(--color-text) !important;
+}
+
+/* =================================================================
+   NAVIGATION & LAYOUT TRANSFORMATIONS
+   ================================================================= */
+
+/* Header/Navigation */
+header,
+nav {
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    transition: all var(--transition-duration) ease-in-out;
+}
+
+.retro-theme header,
+.retro-theme nav {
+    background: var(--window-chrome, var(--color-surface)) !important;
+    border-bottom: 2px outset var(--color-border) !important;
+    height: var(--nav-height, 30px) !important;
+    min-height: var(--nav-height, 30px) !important;
+}
+
+/* Sidebar adjustments */
+aside {
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+}
+
+.retro-theme aside {
+    background: var(--color-surface) !important;
+    border-right: 2px outset var(--color-border) !important;
+    width: var(--sidebar-width, 200px) !important;
+}
+
+/* =================================================================
+   SCROLLBAR CUSTOMIZATION
+   ================================================================= */
+
+/* Modern scrollbars */
+.modern-theme ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.modern-theme ::-webkit-scrollbar-track {
+    background: var(--color-bg);
+}
+
+.modern-theme ::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 4px;
+}
+
+.modern-theme ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-muted);
+}
+
+/* Retro scrollbars */
+.retro-theme ::-webkit-scrollbar {
+    width: 16px;
+    height: 16px;
+}
+
+.retro-theme ::-webkit-scrollbar-track {
+    background: var(--scrollbar-bg, #c0c0c0);
+    border: 1px inset var(--color-border);
+}
+
+.retro-theme ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb, #808080);
+    border: 1px outset var(--scrollbar-thumb, #808080);
+    border-radius: 0;
+}
+
+.retro-theme ::-webkit-scrollbar-thumb:hover {
+    background: var(--button-hover);
+}
+
+.retro-theme ::-webkit-scrollbar-corner {
+    background: var(--scrollbar-bg, #c0c0c0);
+}
+
+/* =================================================================
+   SELECTION & HIGHLIGHT STYLES
+   ================================================================= */
+
+::selection {
+    background: var(--selection-bg, rgba(59, 130, 246, 0.3));
+    color: var(--color-text);
+}
+
+::-moz-selection {
+    background: var(--selection-bg, rgba(59, 130, 246, 0.3));
+    color: var(--color-text);
+}
+
+/* =================================================================
+   SPACING & LAYOUT ADJUSTMENTS
+   ================================================================= */
+
+/* Modern theme spacing */
+.modern-theme {
+    --space-xs: 0.25rem;
+    --space-sm: 0.5rem;
+    --space-md: 1rem;
+    --space-lg: 1.5rem;
+    --space-xl: 2rem;
+    --space-2xl: 3rem;
+}
+
+/* Retro theme spacing - more compact */
+.retro-theme {
+    --space-xs: 2px;
+    --space-sm: 4px;
+    --space-md: 8px;
+    --space-lg: 12px;
+    --space-xl: 16px;
+    --space-2xl: 24px;
+}
+
+/* Apply spacing to common elements */
+.retro-theme .space-y-2 > * + * {
+    margin-top: 4px !important;
+}
+.retro-theme .space-y-3 > * + * {
+    margin-top: 6px !important;
+}
+.retro-theme .space-y-4 > * + * {
+    margin-top: 8px !important;
+}
+.retro-theme .space-y-6 > * + * {
+    margin-top: 12px !important;
+}
+.retro-theme .space-y-8 > * + * {
+    margin-top: 16px !important;
+}
+
+.retro-theme .gap-2 {
+    gap: 4px !important;
+}
+.retro-theme .gap-3 {
+    gap: 6px !important;
+}
+.retro-theme .gap-4 {
+    gap: 8px !important;
+}
+.retro-theme .gap-6 {
+    gap: 12px !important;
+}
+
+/* =================================================================
+   SPECIFIC COMPONENT OVERRIDES
+   ================================================================= */
+
+/* Status indicators in retro themes */
+.retro-theme .status-indicator {
+    border: 1px outset var(--color-border);
+    box-shadow: var(--button-shadow);
+}
+
+/* Progress bars */
+.retro-theme .progress-bar {
+    background: var(--color-surface);
+    border: 1px inset var(--color-border);
+    border-radius: 0 !important;
+    height: 16px !important;
+}
+
+.retro-theme .progress-fill {
+    background: var(--color-accent-blue);
+    border-right: 1px solid rgba(0, 0, 0, 0.2);
+    box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* Modal/Dialog boxes */
+.retro-theme .modal,
+.retro-theme .dialog {
+    border: 3px outset var(--color-border) !important;
+    border-radius: 0 !important;
+    box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Badges and tags */
+.retro-theme .badge,
+.retro-theme .tag {
+    border: 1px outset var(--color-border) !important;
+    border-radius: var(--border-radius) !important;
+    font-size: 10px !important;
+    padding: 2px 6px !important;
+    background: var(--button-bg) !important;
+}
+
+/* =================================================================
+   ANIMATION & TRANSITION ADJUSTMENTS
+   ================================================================= */
+
+/* Retro themes use snappier, less smooth animations */
+.retro-theme * {
+    transition-duration: 0.1s !important;
+    transition-timing-function: ease-out !important;
+}
+
+.retro-theme .animate-pulse {
+    animation-duration: 1s !important;
+}
+
+/* Disable complex animations in retro themes for authenticity */
+.retro-theme .animate-bounce,
+.retro-theme .animate-spin,
+.retro-theme .animate-ping {
+    animation: none !important;
+}
+
+/* =================================================================
+   THEME-SPECIFIC BACKGROUND PATTERNS
+   ================================================================= */
+
+/* Windows XP desktop background pattern */
+.theme-retro-light body {
+    background: var(--color-bg);
+    background-image:
+        radial-gradient(
+            circle at 25% 25%,
+            rgba(255, 255, 255, 0.1) 0%,
+            transparent 50%
+        ),
+        radial-gradient(
+            circle at 75% 75%,
+            rgba(0, 84, 227, 0.1) 0%,
+            transparent 50%
+        );
+}
+
+/* Vista/7 dark background pattern */
+.theme-retro-dark body {
+    background: var(--color-bg);
+    background-image:
+        radial-gradient(
+            circle at 20% 80%,
+            rgba(0, 122, 204, 0.1) 0%,
+            transparent 50%
+        ),
+        radial-gradient(
+            circle at 80% 20%,
+            rgba(26, 26, 46, 0.3) 0%,
+            transparent 50%
+        );
+}
+
+/* Mac OS 9 platinum pattern with authentic brushed metal texture */
+.theme-macos9-light body,
+.theme-macos9-dark body {
+    background: var(--color-bg);
+    background-image:
+        /* Brushed metal vertical lines */
+        linear-gradient(
+            90deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.03) 1px,
+            transparent 2px
+        ),
+        linear-gradient(
+            90deg,
+            transparent 0%,
+            rgba(0, 0, 0, 0.03) 1px,
+            transparent 2px
+        ),
+        /* Pinstripe pattern */
+            linear-gradient(
+                0deg,
+                rgba(255, 255, 255, 0.02) 50%,
+                rgba(0, 0, 0, 0.02) 50%
+            );
+    background-size:
+        3px 100%,
+        6px 100%,
+        1px 2px;
+}
+
+/* Mac OS 9 Dark specific brushed platinum texture */
+.theme-macos9-dark body {
+    background-image:
+        /* Darker brushed metal effect */
+        linear-gradient(
+            90deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.08) 1px,
+            transparent 2px
+        ),
+        linear-gradient(
+            90deg,
+            transparent 0%,
+            rgba(0, 0, 0, 0.15) 1px,
+            transparent 2px
+        ),
+        /* Subtle pinstripe */
+            linear-gradient(
+                0deg,
+                rgba(255, 255, 255, 0.05) 50%,
+                rgba(0, 0, 0, 0.05) 50%
+            );
+    background-size:
+        2px 100%,
+        4px 100%,
+        1px 1px;
+}
+
+/* =================================================================
+   ACCESSIBILITY & FOCUS STATES
+   ================================================================= */
+
+/* Focus styles for retro themes */
+.retro-theme *:focus {
+    outline: 2px solid var(--color-accent-blue) !important;
+    outline-offset: 1px !important;
+}
+
+.retro-theme button:focus,
+.retro-theme .btn:focus {
+    outline: 2px dotted #000000 !important;
+    outline-offset: 2px !important;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .retro-theme {
+        --color-border: #000000;
+        --color-text: #000000;
+        --button-border: #000000;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .retro-theme * {
+        animation-duration: 0.01s !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01s !important;
+    }
+}
+
+/* =================================================================
+   UTILITY CLASSES FOR THEME-SPECIFIC STYLING
+   ================================================================= */
+
+/* Theme detection utilities */
+.modern-only {
+    display: block;
+}
+.retro-only {
+    display: none;
+}
+
+.retro-theme .modern-only {
+    display: none !important;
+}
+.retro-theme .retro-only {
+    display: block !important;
+}
+
+/* Retro-specific utility classes */
+.retro-button {
+    background: var(--button-bg) !important;
+    border: 2px outset var(--button-border) !important;
+    border-radius: var(--border-radius) !important;
+    font-family: var(--font-body) !important;
+    font-size: 11px !important;
+    padding: 4px 12px !important;
+    box-shadow: var(--button-shadow) !important;
+}
+
+.retro-panel {
+    background: var(--color-surface) !important;
+    border: 2px outset var(--color-border) !important;
+    border-radius: var(--border-radius) !important;
+    box-shadow: var(--outset-shadow) !important;
+}
+
+.retro-inset {
+    border: 2px inset var(--color-border) !important;
+    box-shadow: var(--inset-shadow) !important;
+}
+
+/* Mac OS 9 specific enhancements */
+.theme-macos9-light .glass,
+.theme-macos9-dark .glass {
+    background: var(--glass-bg) !important;
+    border: 1px solid var(--glass-border) !important;
+    border-radius: var(--border-radius) !important;
+    /* Authentic Mac brushed metal texture */
+    background-image: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.1) 0%,
+        rgba(255, 255, 255, 0.05) 25%,
+        rgba(0, 0, 0, 0.02) 50%,
+        rgba(255, 255, 255, 0.05) 75%,
+        rgba(255, 255, 255, 0.1) 100%
+    ) !important;
+    background-size: 3px 100% !important;
+    box-shadow:
+        inset 1px 1px 0 rgba(255, 255, 255, 0.3),
+        inset -1px -1px 0 rgba(0, 0, 0, 0.2),
+        0 1px 3px rgba(0, 0, 0, 0.2) !important;
+}
+
+.theme-macos9-light .card,
+.theme-macos9-dark .card {
+    background: var(--color-surface) !important;
+    border: 1px outset var(--color-border) !important;
+    border-radius: var(--border-radius) !important;
+    /* Embossed Mac look */
+    background-image: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.2) 0%,
+        rgba(255, 255, 255, 0.05) 25%,
+        rgba(0, 0, 0, 0.02) 75%,
+        rgba(0, 0, 0, 0.1) 100%
+    ) !important;
+    box-shadow: var(--outset-shadow) !important;
+}
+
+/* Mac OS 9 button styling with authentic embossed look */
+.theme-macos9-light button,
+.theme-macos9-dark button,
+.theme-macos9-light .btn,
+.theme-macos9-dark .btn {
+    background: var(--button-bg) !important;
+    border: 1px outset var(--button-border) !important;
+    border-radius: var(--border-radius) !important;
+    font-family: var(--font-body) !important;
+    font-size: 12px !important;
+    padding: 3px 12px !important;
+    /* Mac button texture */
+    background-image: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.4) 0%,
+        rgba(255, 255, 255, 0.1) 50%,
+        rgba(0, 0, 0, 0.05) 100%
+    ) !important;
+    box-shadow: var(--button-shadow) !important;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+}
+
+.theme-macos9-light button:hover,
+.theme-macos9-dark button:hover,
+.theme-macos9-light .btn:hover,
+.theme-macos9-dark .btn:hover {
+    background: var(--button-hover) !important;
+    background-image: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.6) 0%,
+        rgba(255, 255, 255, 0.2) 50%,
+        rgba(0, 0, 0, 0.02) 100%
+    ) !important;
+}
+
+.theme-macos9-light button:active,
+.theme-macos9-dark button:active,
+.theme-macos9-light .btn:active,
+.theme-macos9-dark .btn:active {
+    border-style: inset !important;
+    box-shadow: var(--button-pressed) !important;
+    background-image: linear-gradient(
+        180deg,
+        rgba(0, 0, 0, 0.1) 0%,
+        rgba(0, 0, 0, 0.05) 50%,
+        rgba(255, 255, 255, 0.1) 100%
+    ) !important;
+}
+
+/* Mac OS 9 scrollbar styling */
+.theme-macos9-light ::-webkit-scrollbar,
+.theme-macos9-dark ::-webkit-scrollbar {
+    width: 16px;
+    height: 16px;
+}
+
+.theme-macos9-light ::-webkit-scrollbar-track,
+.theme-macos9-dark ::-webkit-scrollbar-track {
+    background: var(--scrollbar-bg);
+    border: 1px inset var(--color-border);
+    border-radius: 0;
+}
+
+.theme-macos9-light ::-webkit-scrollbar-thumb,
+.theme-macos9-dark ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border: 1px outset var(--scrollbar-thumb);
+    border-radius: 0;
+    /* Mac scrollbar texture */
+    background-image: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.3) 0%,
+        rgba(255, 255, 255, 0.1) 50%,
+        rgba(0, 0, 0, 0.1) 100%
+    );
+}
+
+.theme-macos9-light ::-webkit-scrollbar-corner,
+.theme-macos9-dark ::-webkit-scrollbar-corner {
+    background: var(--scrollbar-bg);
+    border: 1px outset var(--color-border);
+}
+
+.retro-text {
+    font-family: var(--font-body) !important;
+    font-size: 11px !important;
+    color: var(--color-text) !important;
+}
+
+/* =================================================================
+   RESPONSIVE ADJUSTMENTS
+   ================================================================= */
+
+/* Mobile-specific retro adjustments */
+@media (max-width: 768px) {
+    .retro-theme {
+        --nav-height: 32px;
+        --sidebar-width: 100%;
+    }
+
+    .retro-theme button,
+    .retro-theme .btn {
+        min-height: 32px !important;
+        font-size: 12px !important;
+        padding: 6px 12px !important;
+    }
+
+    .retro-theme h1 {
+        font-size: 1.5rem !important;
+    }
+    .retro-theme h2 {
+        font-size: 1.25rem !important;
+    }
+    .retro-theme h3 {
+        font-size: 1.125rem !important;
+    }
+}
+
+/* =================================================================
+   PRINT STYLES
+   ================================================================= */
+
+@media print {
+    .retro-theme * {
+        background: white !important;
+        color: black !important;
+        border-color: black !important;
+        box-shadow: none !important;
+    }
+}
+
+/* =================================================================
+   LEGACY BROWSER SUPPORT
+   ================================================================= */
+
+/* Fallbacks for browsers that don't support CSS custom properties */
+@supports not (color: var(--color-bg)) {
+    .retro-theme {
+        font-family: "Tahoma", "Geneva", "Verdana", sans-serif;
+        background: #ece9d8;
+        color: #000000;
+    }
+
+    .retro-theme button {
+        background: #ece9d8;
+        border: 2px outset #aca899;
+        font-size: 11px;
+        padding: 4px 12px;
+    }
+}
+
+/* =================================================================
+   MONOCHROME THEMES
+   ================================================================= */
+
+/* Monochrome Dark Theme Styles */
+.theme-monochrome-dark {
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+.theme-monochrome-dark body {
+    background: #000000;
+    color: #ffffff;
+}
+
+.theme-monochrome-dark .glass {
+    background: rgba(0, 0, 0, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    backdrop-filter: none;
+}
+
+.theme-monochrome-dark .card {
+    background: #000000;
+    border: 1px solid #ffffff;
+    box-shadow: none;
+}
+
+.theme-monochrome-dark button,
+.theme-monochrome-dark .btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #ffffff;
+    transition: all 0.2s ease;
+}
+
+.theme-monochrome-dark button:hover,
+.theme-monochrome-dark .btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: #ffffff;
+}
+
+.theme-monochrome-dark button:active,
+.theme-monochrome-dark .btn:active {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.theme-monochrome-dark input,
+.theme-monochrome-dark textarea,
+.theme-monochrome-dark select {
+    background: #000000;
+    border: 1px solid #ffffff;
+    color: #ffffff;
+}
+
+.theme-monochrome-dark input:focus,
+.theme-monochrome-dark textarea:focus,
+.theme-monochrome-dark select:focus {
+    border-color: #ffffff;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+}
+
+/* Monochrome Dark Scrollbars */
+.theme-monochrome-dark ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.theme-monochrome-dark ::-webkit-scrollbar-track {
+    background: #000000;
+}
+
+.theme-monochrome-dark ::-webkit-scrollbar-thumb {
+    background: #ffffff;
+    border-radius: 4px;
+}
+
+.theme-monochrome-dark ::-webkit-scrollbar-thumb:hover {
+    background: #cccccc;
+}
+
+/* Monochrome Light Theme Styles */
+.theme-monochrome-light {
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+.theme-monochrome-light body {
+    background: #ffffff;
+    color: #000000;
+}
+
+.theme-monochrome-light .glass {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    backdrop-filter: none;
+}
+
+.theme-monochrome-light .card {
+    background: #ffffff;
+    border: 1px solid #000000;
+    box-shadow: none;
+}
+
+.theme-monochrome-light button,
+.theme-monochrome-light .btn {
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    color: #000000;
+    transition: all 0.2s ease;
+}
+
+.theme-monochrome-light button:hover,
+.theme-monochrome-light .btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+    border-color: #000000;
+}
+
+.theme-monochrome-light button:active,
+.theme-monochrome-light .btn:active {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.theme-monochrome-light input,
+.theme-monochrome-light textarea,
+.theme-monochrome-light select {
+    background: #ffffff;
+    border: 1px solid #000000;
+    color: #000000;
+}
+
+.theme-monochrome-light input:focus,
+.theme-monochrome-light textarea:focus,
+.theme-monochrome-light select:focus {
+    border-color: #000000;
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Monochrome Light Scrollbars */
+.theme-monochrome-light ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.theme-monochrome-light ::-webkit-scrollbar-track {
+    background: #ffffff;
+}
+
+.theme-monochrome-light ::-webkit-scrollbar-thumb {
+    background: #000000;
+    border-radius: 4px;
+}
+
+.theme-monochrome-light ::-webkit-scrollbar-thumb:hover {
+    background: #333333;
+}
+
+/* Common Monochrome Styles */
+.theme-monochrome-dark ::selection,
+.theme-monochrome-light ::selection {
+    background: rgba(128, 128, 128, 0.3);
+}
+
+.theme-monochrome-dark ::-moz-selection,
+.theme-monochrome-light ::-moz-selection {
+    background: rgba(128, 128, 128, 0.3);
+}
+
+/* Remove gradients and effects for pure minimalism */
+.theme-monochrome-dark *,
+.theme-monochrome-light * {
+    text-shadow: none !important;
+    box-shadow: none !important;
+    background-image: none !important;
+}
+
+/* Exception for necessary button hover effects */
+.theme-monochrome-dark button:hover,
+.theme-monochrome-dark .btn:hover,
+.theme-monochrome-light button:hover,
+.theme-monochrome-light .btn:hover {
+    box-shadow: none !important;
+}
+
+/* =================================================================
+   MINDMAP PAGE BACKGROUND PRESERVATION
+   ================================================================= */
+
+/* Preserve original mindmap backgrounds by targeting specific components */
+.mindmap-canvas,
+.mindmap-editor,
+.mindmap-dashboard {
+    background: #0a0a0a !important;
+}
+
+/* Target mindmap pages by their container structure */
+div:has(> .mindmap-canvas) {
+    background: #0a0a0a !important;
+}
+
+/* Preserve mindmap surface elements */
+.mindmap-canvas .bg-dark-surface,
+.mindmap-editor .bg-dark-surface,
+.mindmap-dashboard .bg-dark-surface {
+    background: #111111 !important;
+}
+
+/* Preserve mindmap gradient overlays */
+.mindmap-canvas .bg-gradient-to-br,
+.mindmap-editor .bg-gradient-to-br,
+.mindmap-dashboard .bg-gradient-to-br {
+    background: linear-gradient(
+        135deg,
+        rgba(59, 130, 246, 0.02) 0%,
+        transparent 50%,
+        rgba(139, 92, 246, 0.02) 100%
+    ) !important;
+}
